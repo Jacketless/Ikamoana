@@ -1,3 +1,6 @@
+import numpy as np
+from parcels.field import Field
+
 def V_max(monthly_age, a=0.7343607395421234, b=0.5006692114850767):
     L = GetLengthFromAge(monthly_age)
     V = a * np.power(L, b)
@@ -32,6 +35,7 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
     K = np.zeros(np.shape(H.data), dtype=np.float32)
     months = start_age
     age = months*30*24*60*60
+    print(range(H.time.size))
     for t in range(H.time.size):
         # Increase age in months if required, to incorporate appropriate Vmax
         if (age + H.time[t] - H.time[0]) - (months*30*24*60*60) > (30*24*60*60):
@@ -43,32 +47,3 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
                 K[t, y, x] = sig_D * (1 - c * np.power(H.data[t, y, x], P))
 
     return Field('K', K, H.lon, H.lat, time=H.time)
-
-
-class SEAPODYM_SKJ(ParticleClass):
-        user_vars = {'H': np.float32, 'monthly_age': np.float32, 'age': np.float32, 'fish': np.float32,
-                     'Vx': np.float32, 'Vy': np.float32,
-                     'Dx': np.float32, 'Dy': np.float32,
-                     'Ax': np.float32, 'Ay': np.float32,
-                     'Cx': np.float32, 'Cy': np.float32}
-        monthly_age = 4
-        age = 4.*30*24*60*60
-        v_max = 0.
-        Dv_max = 0.
-        ready4M = False
-
-        def __init__(self, *args, **kwargs):
-            """Custom initialisation function which calls the base
-            initialisation and adds the instance variable p"""
-            super(Tuna, self).__init__(*args, **kwargs)
-            self.age = 4.*30*24*60*60
-            self.monthly_age = int(start_age/(30*24*60*60))
-            self.Vmax = V_max(self.monthly_age)
-            self.fish = 100000
-
-        def age_school(self, dt):
-            self.age += dt
-            if self.age - (self.monthly_age*30*24*60*60) > (30*24*60*60):
-                self.monthly_age += 1
-                self.Vmax = V_max(self.monthly_age)
-                self.fish *= 1-Mortality(self.monthly_age, H=self.H)

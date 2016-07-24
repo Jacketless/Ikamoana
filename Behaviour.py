@@ -1,5 +1,6 @@
 from parcels import *
 import numpy as np
+import math
 
 
 def SampleH(particle, grid, time, dt):
@@ -49,22 +50,18 @@ def GradientRK4(particle, grid, time, dt):
 
 
 def LagrangianDiffusion(particle, grid, time, dt):
-    #print(particle.lon, particle.lat)
     to_lat = 1 / 1000. / 1.852 / 60.
     to_lon = to_lat / math.cos(particle.lat*math.pi/180)
     r = 1/3.
-    Rx = np.random.uniform(-1., 1.)
-    Ry = np.random.uniform(-1., 1.)
+    #Rx = np.random.uniform(-1., 1.)
+    #Ry = np.random.uniform(-1., 1.)
+    Rx = rng.uniform(-1., 1.)
+    Ry = rng.uniform(-1., 1.)
     dK = RK4(grid.dK_dx, grid.dK_dy, particle.lon, particle.lat, time, dt)
     half_dx = 0.5 * dK[0] * dt * to_lon
     half_dy = 0.5 * dK[1] * dt * to_lat
-    #print('half_dx = %s' % half_dx)
-    #print('half_dy = %s' % half_dy)
-    #print('K = %s' % (2 * RK4(grid.K, grid.K, particle.lon + half_dx, particle.lat + half_dy, time, dt)[0] * dt / r))
     Rx_component = Rx * np.sqrt(2 * RK4(grid.K, grid.K, particle.lon + half_dx, particle.lat + half_dy, time, dt)[0] * dt / r) * to_lon
     Ry_component = Ry * np.sqrt(2 * RK4(grid.K, grid.K, particle.lon + half_dx, particle.lat + half_dy, time, dt)[1] * dt / r) * to_lat
-    #print('Rx_comp = %s' % Rx_component)
-    #print('Ry_comp = %s' % Ry_component)
     CorrectionX = dK[0] * dt * to_lon
     CorrectionY = dK[1] * dt * to_lat
     particle.Dx = Rx_component
@@ -90,7 +87,6 @@ def RandomWalkDiffusion(particle, grid, time, dt):
     dK = RK4(grid.dK_dx, grid.dK_dy, particle.lon, particle.lat, time, dt)
     half_dx = 0.5 * dK[0] * to_lon * dt
     half_dy = 0.5 * dK[1] * to_lat * dt
-
     Rand = np.random.uniform(0, 1.)
     K_at_half = RK4(grid.K, grid.K, particle.lon + half_dx, particle.lat + half_dy, time, dt)[0]
     R = Rand * K_at_half * dt #np.sqrt(4 * K_at_half * dt)
@@ -101,28 +97,9 @@ def RandomWalkDiffusion(particle, grid, time, dt):
     particle.Cy = CorrectionY
     particle.Dx = R*np.cos(angle) * to_lon
     particle.Dy = R*np.sin(angle) * to_lat
-    #if np.isnan(particle.Dx + particle.Dy):
-    #    print('Error in particle at %s - %s' % (particle.lon, particle.lat))
-    #    print('R = %s  half_dx = %s  half_dy = %s  angle = %s  rand = %s  KatHalf = %s  K = %s' %
-    #          (R, half_dx, half_dy, angle, Rand, K_at_half, K[time, particle.lon, particle.lat]))
+
 
 def Move(particle, grid, time, dt):
-    # if np.isnan(particle.Dx):
-    #     print("Had to adjust negative diffusion!")
-    #     print("Dx = %s" % particle.Dx)
-    #     particle.Dx = 0
-    # if np.isnan(particle.Dy):
-    #     print("Had to adjust negative diffusion!")
-    #     print("Dy = %s" % particle.Dy)
-    #     particle.Dy = 0
-    # if np.isnan(particle.Cx):
-    #     print("Had to adjust negative diffusion!")
-    #     print("Cx = %s" % particle.Cx)
-    #     particle.Cx = 0
-    # if np.isnan(particle.Cy):
-    #     print("Had to adjust negative diffusion!")
-    #     print("Cy = %s" % particle.Cy)
-    #     particle.Cy = 0
-   # print("Ax = %s, Vs = %s, Dx = %s, Cx = %s" % (particle.Ax, particle.Vx, particle.Dx, particle.Cx))
+    # print("Ax = %s, Vs = %s, Dx = %s, Cx = %s" % (particle.Ax, particle.Vx, particle.Dx, particle.Cx))
     particle.lon += particle.Ax + particle.Dx + particle.Cx + particle.Vx
     particle.lat += particle.Ay + particle.Dy + particle.Cy + particle.Vy
