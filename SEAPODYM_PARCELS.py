@@ -9,7 +9,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
              Uname='u', Vname='v', Hname='habitat', Dname='density',
              dimLon='lon', dimLat='lat',dimTime='time',
              individuals=100, timestep=172800, time=30, start_age=4,
-             output_density=False, output_file="SIMPODYM"):
+             output_density=False, output_file="SIMPODYM", mode='jit'):
 
     filenames = {'U': forcingU, 'V': forcingV, 'H': forcingH, 'SEAPODYM_Density': startD}
     variables = {'U': Uname, 'V': Vname, 'H': Hname, 'SEAPODYM_Density': Dname}
@@ -43,7 +43,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
     for field in K_gradients:
         grid.add_field(field)
 
-    ParticleClass = JITParticle if args.mode == 'jit' else Particle
+    ParticleClass = JITParticle if mode == 'jit' else Particle
     SKJ = Create_Particle_Class(ParticleClass)
 
     #if startD is not None:
@@ -64,10 +64,10 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
 
     print("Starting Sim")
     fishset.execute(sampH + age + follow_gradient_rk4 + advect + diffuse + move, endtime=fishset.grid.time[0]+time*timestep, dt=timestep,
-                    output_file=fishset.ParticleFile(name=filename+"_results"),
+                    output_file=fishset.ParticleFile(name=output_file+"_results"),
                     interval=timestep)#, density_field=density_field)
 
-    grid.write(args.output)
+    grid.write(output_file)
 
 
 def Create_Particle_Class(type=JITParticle):
@@ -147,4 +147,4 @@ if __name__ == "__main__":
     SIMPODYM(forcingU=U, forcingV=V, forcingH=H, startD=args.startfield,
              Uname=args.netcdf_vars[0], Vname=args.netcdf_vars[1], Hname=args.netcdf_vars[2],
              dimLat=args.dimensions[0], dimLon=args.dimensions[1], dimTime=args.dimensions[2],
-             individuals=args.particles, timestep=args.timestep, time=args.time, output_file=args.output)
+             individuals=args.particles, timestep=args.timestep, time=args.time, output_file=args.output, mode=args.mode)
