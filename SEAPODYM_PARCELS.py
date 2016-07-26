@@ -117,7 +117,7 @@ if __name__ == "__main__":
                    help='Print profiling information after run')
     p.add_argument('-g', '--grid', type=int,  default=None,
                    help='Generate grid file with given dimensions')
-    p.add_argument('-f', '--files', default=['SEAPODYM_Forcing_Data/SEAPODYM1997_PHYS_Prepped.nc', 'SEAPODYM_Forcing_Data/SEAPODYM1997_PHYS_Prepped.nc', 'SEAPODYM_Forcing_Data/SEAPODYM1997_HABITAT_Prepped.nc'],
+    p.add_argument('-f', '--files', default=['SEAPODYM_Forcing_Data/SEAPODYM2003_PHYS_Prepped.nc', 'SEAPODYM_Forcing_Data/SEAPODYM2003_PHYS_Prepped.nc', 'SEAPODYM_Forcing_Data/SEAPODYM2003_HABITAT_Prepped.nc'],
                    help='List of NetCDF files to load')
     p.add_argument('-v', '--variables', default=['U', 'V', 'H'],
                    help='List of field variables to extract, using PARCELS naming convention')
@@ -129,7 +129,7 @@ if __name__ == "__main__":
                    help='List of dimensions across which field variables occur, as given in the NetCDF files, to map to the --dimensions args')
     p.add_argument('-t', '--time', type=int, default=15,
                    help='List of dimensions across which field variables occur, as given in the NetCDF files, to map to the --dimensions args')
-    p.add_argument('-s', '--startfield', type=str, default='SEAPODYM_Forcing_Data/SEAPODYM1997_DENSITY_Prepped.nc',
+    p.add_argument('-s', '--startfield', type=str, default='SEAPODYM_Forcing_Data/SEAPODYM2003_DENSITY_Prepped.nc',
                    help='Particle density field with which to initiate particle positions')
     p.add_argument('-o', '--output', default='SIMPODYM1997',
                    help='List of NetCDF files to load')

@@ -1,5 +1,6 @@
 import numpy as np
 from parcels.field import Field
+from parcels.grid import Grid
 
 def V_max(monthly_age, a=0.7343607395421234, b=0.5006692114850767):
     L = GetLengthFromAge(monthly_age)
@@ -35,11 +36,12 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
     K = np.zeros(np.shape(H.data), dtype=np.float32)
     months = start_age
     age = months*30*24*60*60
-    print(range(H.time.size))
     for t in range(H.time.size):
         # Increase age in months if required, to incorporate appropriate Vmax
-        if (age + H.time[t] - H.time[0]) - (months*30*24*60*60) > (30*24*60*60):
+        age += H.time[t] - H.time[0]
+        if age - (months*30*24*60*60) > (30*24*60*60):
             months += 1
+        print(months)
         Dmax = np.power(V_max(months, b=Vmax_slope), 2) / 4 * timestep #fixed b parameter for diffusion
         sig_D = sigma * Dmax
         for x in range(H.lon.size):
@@ -47,3 +49,45 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
                 K[t, y, x] = sig_D * (1 - c * np.power(H.data[t, y, x], P))
 
     return Field('K', K, H.lon, H.lat, time=H.time)
+
+
+def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
+                         Uname='u', Vname='v', Hname='habitat', Dname='density',
+                         dimLon='lon', dimLat='lat', dimTime='time', output_density=False):
+    filenames = {'U': forcingU, 'V': forcingV, 'H': forcingH}
+    variables = {'U': Uname, 'V': Vname, 'H': Hname}
+    dimensions = {'lon': dimLon, 'lat': dimLat, 'time': dimTime}
+
+    if startD is not None:
+        filenames.update({'SEAPODYM_Density': startD})
+        variables.update({'SEAPODYM_Density': Dname})
+
+    print("Creating Grid")
+    grid = Grid.from_netcdf(filenames=filenames, variables=variables, dimensions=dimensions, vmax=200)
+    print("Grid contains fields:")
+    for f in grid.fields:
+        print(f)
+
+    if output_density:
+        # Add a density field that will hold particle densities
+        grid.add_field(Field('Density', np.full([grid.U.lon.size, grid.U.lat.size, grid.U.time.size],-1, dtype=np.float64),
+                       grid.U.lon, grid.U.lat, depth=grid.U.depth, time=grid.U.time, transpose=True))
+        density_field = grid.Density
+    else:
+        density_field = None
+
+    # Offline calculate the 'diffusion' grid as a function of habitat
+    print("Creating Diffusion Field")
+    K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60)
+    grid.add_field(K)
+
+    # Offline calculation of the diffusion and basic habitat grid
+    print("Calculating Gradient Fields")
+    gradients = grid.H.gradient()
+    for field in gradients:
+        grid.add_field(field)
+    K_gradients = grid.K.gradient()
+    for field in K_gradients:
+        grid.add_field(field)
+
+    return grid
