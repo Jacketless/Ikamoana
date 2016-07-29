@@ -41,7 +41,6 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
         age += H.time[t] - H.time[0]
         if age - (months*30*24*60*60) > (30*24*60*60):
             months += 1
-        print(months)
         Dmax = np.power(V_max(months, b=Vmax_slope), 2) / 4 * timestep #fixed b parameter for diffusion
         sig_D = sigma * Dmax
         for x in range(H.lon.size):
