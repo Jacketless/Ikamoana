@@ -51,7 +51,8 @@ def GradientRK4(particle, grid, time, dt):
     #print('Taxis')
     to_lat = 1 / 1000. / 1.852 / 60.
     to_lon = to_lat / math.cos(particle.lat*math.pi/180)
-    V = RK4(grid.dH_dx, grid.dH_dy, particle.lon, particle.lat, time, dt)
+    #V = RK4(grid.dH_dx, grid.dH_dy, particle.lon, particle.lat, time, dt)
+    V = [grid.dH_dx[time,particle.lon,particle.lat], grid.dH_dy[time,particle.lon,particle.lat]]
     particle.Vx = V[0] * particle.Vmax * dt * (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * to_lon
     particle.Vy = V[1] * particle.Vmax * dt * (1000*1.852*60) * to_lat
 
@@ -92,7 +93,8 @@ def Advection(particle, grid, time, dt):
     #physical_forcing = RK4(grid.U, grid.V, particle.lon, particle.lat, time, dt)
     #particle.Ax = physical_forcing[0] * dt * to_lon
     #particle.Ay = physical_forcing[1] * dt * to_lat
-    physical_forcing = RK4alt(grid.U, grid.V, particle.lon, particle.lat, time, dt)
+    #physical_forcing = RK4alt(grid.U, grid.V, particle.lon, particle.lat, time, dt)
+    physical_forcing = [grid.U[time, particle.lon, particle.lat], grid.V[time, particle.lon, particle.lat]]
     particle.Ax = physical_forcing[0] * dt
     particle.Ay = physical_forcing[1] * dt
 
@@ -122,5 +124,20 @@ def Update(particle, grid, time, dt):
 
 def Move(particle, grid, time, dt):
     # print("Ax = %s, Vs = %s, Dx = %s, Cx = %s" % (particle.Ax, particle.Vx, particle.Dx, particle.Cx))
+    newlon = particle.lon + particle.Ax + particle.Dx + particle.Cx + particle.Vx
+    newlat = particle.lat + particle.Ay + particle.Dy + particle.Cy + particle.Vy
+    inside_bounds = False
+    while inside_bounds is False:
+         try:
+             grid.U[time, newlon, newlat]
+         except (IndexError, ValueError):
+             print("Redrawing Diffusion p at %s - %s" % (newlon, newlat))
+             print("inside_bounds = %s" % inside_bounds)
+             LagrangianDiffusion(particle, grid, time, dt)
+             newlon = particle.lon + particle.Ax + particle.Dx + particle.Cx + particle.Vx
+             newlat = particle.lat + particle.Ay + particle.Dy + particle.Cy + particle.Vy
+         else:
+             inside_bounds = True
+
     particle.lon += particle.Ax + particle.Dx + particle.Cx + particle.Vx
     particle.lat += particle.Ay + particle.Dy + particle.Cy + particle.Vy
