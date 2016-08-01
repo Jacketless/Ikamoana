@@ -52,7 +52,8 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
 
 def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
                          Uname='u', Vname='v', Hname='habitat', Dname='density',
-                         dimLon='lon', dimLat='lat', dimTime='time', output_density=False):
+                         dimLon='lon', dimLat='lat', dimTime='time',
+                         scaleH=False, output_density=False):
     filenames = {'U': forcingU, 'V': forcingV, 'H': forcingH}
     variables = {'U': Uname, 'V': Vname, 'H': Hname}
     dimensions = {'lon': dimLon, 'lat': dimLat, 'time': dimTime}
@@ -62,7 +63,7 @@ def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
         variables.update({'SEAPODYM_Density': Dname})
 
     print("Creating Grid")
-    grid = Grid.from_netcdf(filenames=filenames, variables=variables, dimensions=dimensions, vmax=200)
+    grid = Grid.from_netcdf(filenames=filenames, variables=variables, dimensions=dimensions, vmin=-200, vmax=200)
     print("Grid contains fields:")
     for f in grid.fields:
         print(f)
@@ -74,6 +75,10 @@ def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
         density_field = grid.Density
     else:
         density_field = None
+
+    # Scale the H field between zero and one if required
+    if scaleH:
+        grid.H.data = grid.H.data/np.max(grid.H.data)
 
     # Offline calculate the 'diffusion' grid as a function of habitat
     print("Creating Diffusion Field")
