@@ -39,7 +39,7 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
     for t in range(H.time.size):
         print("H field time = %s" % H.time[t])
         # Increase age in months if required, to incorporate appropriate Vmax
-        age += H.time[t] - H.time[0]
+        age = H.time[t] - H.time[0]
         if age - (months*30*24*60*60) > (30*24*60*60):
             months += 1
         print("Fish age in months = %s" % months)
