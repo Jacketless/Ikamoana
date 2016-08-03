@@ -54,8 +54,8 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
 
 def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
                          Uname='u', Vname='v', Hname='habitat', Dname='density',
-                         dimLon='lon', dimLat='lat', dimTime='time',
-                         scaleH=False, output_density=False):
+                         dimLon='lon', dimLat='lat', dimTime='time', timestep=86400,
+                         scaleH=None, start_age=4, output_density=False):
     filenames = {'U': forcingU, 'V': forcingV, 'H': forcingH}
     variables = {'U': Uname, 'V': Vname, 'H': Hname}
     dimensions = {'lon': dimLon, 'lat': dimLat, 'time': dimTime}
@@ -79,13 +79,14 @@ def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
         density_field = None
 
     # Scale the H field between zero and one if required
-    if scaleH:
+    if scaleH is not None:
         grid.H.data /= np.max(grid.H.data)
         grid.H.data[np.where(grid.H.data < 0)] = 0
+        grid.H.data *= scaleH
 
     # Offline calculate the 'diffusion' grid as a function of habitat
     print("Creating Diffusion Field")
-    K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60)
+    K = Create_SEAPODYM_Diffusion_Field(grid.H, timestep, start_age)
     grid.add_field(K)
 
     # Offline calculation of the diffusion and basic habitat grid

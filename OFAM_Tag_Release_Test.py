@@ -40,7 +40,8 @@ if __name__ == "__main__":
 
     grid = Create_SEAPODYM_Grid(forcingU=U, forcingV=V, forcingH=H,
              Uname=args.netcdf_vars[0], Vname=args.netcdf_vars[1], Hname=args.netcdf_vars[2],
-             dimLat=args.map_dimensions[0], dimLon=args.map_dimensions[1], dimTime=args.map_dimensions[2])
+             dimLat=args.map_dimensions[0], dimLon=args.map_dimensions[1], dimTime=args.map_dimensions[2],
+                                start_age=12)
 
     TagRelease(grid, location=args.location, start=args.starttime, individuals=args.particles,
                timestep=args.timestep, time=args.time, output_file=filename, mode=args.mode)
