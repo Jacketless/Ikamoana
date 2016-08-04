@@ -8,7 +8,11 @@ def SampleH(particle, grid, time, dt):
 
 
 def AgeParticle(particle, grid, time, dt):
-    particle.age_school(dt)
+    particle.age += dt
+    if particle.age - (particle.monthly_age*30*24*60*60) > (30*24*60*60):
+        particle.monthly_age += 1
+        particle.Vmax = V_max(particle.monthly_age)
+        particle.fish *= 1-Mortality(particle.monthly_age, H=particle.H)
 
 
 def RK4(fieldx, fieldy, lon, lat, time, dt):
@@ -51,8 +55,8 @@ def GradientRK4(particle, grid, time, dt):
     #print('Taxis')
     to_lat = 1 / 1000. / 1.852 / 60.
     to_lon = to_lat / math.cos(particle.lat*math.pi/180)
-    #V = RK4(grid.dH_dx, grid.dH_dy, particle.lon, particle.lat, time, dt)
-    V = [grid.dH_dx[time,particle.lon,particle.lat], grid.dH_dy[time,particle.lon,particle.lat]]
+    V = RK4(grid.dH_dx, grid.dH_dy, particle.lon, particle.lat, time, dt)
+    #V = [grid.dH_dx[time,particle.lon,particle.lat], grid.dH_dy[time,particle.lon,particle.lat]]
     particle.Vx = V[0] * particle.Vmax * dt * (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * to_lon
     particle.Vy = V[1] * particle.Vmax * dt * (1000*1.852*60) * to_lat
 
@@ -93,8 +97,8 @@ def Advection(particle, grid, time, dt):
     #physical_forcing = RK4(grid.U, grid.V, particle.lon, particle.lat, time, dt)
     #particle.Ax = physical_forcing[0] * dt * to_lon
     #particle.Ay = physical_forcing[1] * dt * to_lat
-    #physical_forcing = RK4alt(grid.U, grid.V, particle.lon, particle.lat, time, dt)
-    physical_forcing = [grid.U[time, particle.lon, particle.lat], grid.V[time, particle.lon, particle.lat]]
+    physical_forcing = RK4alt(grid.U, grid.V, particle.lon, particle.lat, time, dt)
+    #physical_forcing = [grid.U[time, particle.lon, particle.lat], grid.V[time, particle.lon, particle.lat]]
     particle.Ax = physical_forcing[0] * dt
     particle.Ay = physical_forcing[1] * dt
 
