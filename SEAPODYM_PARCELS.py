@@ -96,13 +96,6 @@ def Create_Particle_Class(type=JITParticle):
             self.monthly_age = int(self.age/(30*24*60*60))
             self.Vmax = V_max(self.monthly_age)
 
-        def age_school(self, dt):
-            self.age += dt
-            if self.age - (self.monthly_age*30*24*60*60) > (30*24*60*60):
-                self.monthly_age += 1
-                self.Vmax = V_max(self.monthly_age)
-                self.fish *= 1-Mortality(self.monthly_age, H=self.H)
-
     return SEAPODYM_SKJ
 
 
