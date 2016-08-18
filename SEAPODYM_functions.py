@@ -30,6 +30,16 @@ def Mortality(age, MPmax=0.3, MPexp=0.1008314958945224, MSmax=0.0061090013821118
     Mvar = Mnat * np.power(1 - Mrange, 1-H/2)
     return Mvar
 
+def Mortality_C(age, H):
+    MPmax=0.3
+    MPexp=0.1008314958945224
+    MSmax=0.006109001382111822
+    MSslope=0.8158285706493162
+    Mrange=1.430156372206337e-05
+    Mnat = MPmax*np.exp(-MPexp*age) + MSmax*np.power(age, MSslope)
+    Mvar = Mnat * np.power(1 - Mrange, 1-H/2)
+    return Mvar
+
 
 def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303, c=0.9817751085550976, P=3,
                                     start_age=4, Vmax_slope=1):
@@ -88,14 +98,5 @@ def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
     print("Creating Diffusion Field")
     K = Create_SEAPODYM_Diffusion_Field(grid.H, timestep, start_age)
     grid.add_field(K)
-
-    # Offline calculation of the diffusion and basic habitat grid
-    print("Calculating Gradient Fields")
-    gradients = grid.H.gradient()
-    for field in gradients:
-        grid.add_field(field)
-    K_gradients = grid.K.gradient()
-    for field in K_gradients:
-        grid.add_field(field)
 
     return grid

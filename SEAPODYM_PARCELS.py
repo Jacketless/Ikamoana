@@ -1,6 +1,8 @@
 from parcels import *
 from SEAPODYM_functions import *
 from Behaviour import *
+from py import path
+from glob import glob
 import numpy as np
 import math
 from argparse import ArgumentParser
@@ -8,8 +10,16 @@ from argparse import ArgumentParser
 def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
              Uname='u', Vname='v', Hname='habitat', Dname='density',
              dimLon='lon', dimLat='lat',dimTime='time',
+             Kfile=None, dK_dxfile=None, dK_dyfile=None, dH_dxfile=None, dH_dyfile=None,
              individuals=100, timestep=172800, time=30, start_age=4,
-             output_density=False, output_file="SIMPODYM", mode='jit'):
+             output_density=False, output_file="SIMPODYM", write_grid=False,
+             random_seed=None, mode='jit'):
+
+    if random_seed is None:
+        np.random.RandomState()
+        random_seed = np.random.get_state()
+    else:
+        np.random.RandomState(random_seed)
 
     filenames = {'U': forcingU, 'V': forcingV, 'H': forcingH, 'SEAPODYM_Density': startD}
     variables = {'U': Uname, 'V': Vname, 'H': Hname, 'SEAPODYM_Density': Dname}
@@ -30,18 +40,35 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
         density_field = None
 
     # Offline calculate the 'diffusion' grid as a function of habitat
-    print("Creating Diffusion Field")
-    K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60)
-    grid.add_field(K)
+    if Kfile is None:
+        print("Creating Diffusion Field")
+        K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60)
+        grid.add_field(K)
+    else:
+        grid.add_field(Field.from_netcdf('K', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'K'}, glob(str(path.local(Kfile)))))
 
-    # Offline calculation of the diffusion and basic habitat grid
-    print("Calculating Gradient Fields")
-    gradients = grid.H.gradient()
-    for field in gradients:
-        grid.add_field(field)
-    K_gradients = grid.K.gradient()
-    for field in K_gradients:
-        grid.add_field(field)
+    print(dH_dxfile)
+    print(dH_dyfile)
+    if dH_dxfile is None or dH_dyfile is None:
+        # Offline calculation of the diffusion and basic habitat grid
+        print("Calculating H Gradient Fields")
+        gradients = grid.H.gradient()
+        for field in gradients:
+            grid.add_field(field)
+    else:
+        print("Loading H Gradient Fields")
+        grid.add_field(Field.from_netcdf('dH_dx', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'dH_dx'}, glob(str(path.local(dH_dxfile)))))
+        grid.add_field(Field.from_netcdf('dH_dy', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'dH_dy'}, glob(str(path.local(dH_dyfile)))))
+
+    if dK_dxfile is None or dK_dyfile is None:
+        print("Calculating K Gradient Fields")
+        K_gradients = grid.K.gradient()
+        for field in K_gradients:
+            grid.add_field(field)
+    else:
+        print("Loading K Gradient Fields")
+        grid.add_field(Field.from_netcdf('dK_dx', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'dK_dx'}, glob(str(path.local(dK_dxfile)))))
+        grid.add_field(Field.from_netcdf('dK_dy', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'dK_dy'}, glob(str(path.local(dK_dyfile)))))
 
     ParticleClass = JITParticle if mode == 'jit' else Particle
     SKJ = Create_Particle_Class(ParticleClass)
@@ -66,8 +93,20 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
     fishset.execute(sampH + age + follow_gradient_rk4 + advect + diffuse + move, endtime=fishset.grid.time[0]+time*timestep, dt=timestep,
                     output_file=fishset.ParticleFile(name=output_file+"_results"),
                     interval=timestep)#, density_field=density_field)
+    if write_grid:
+        grid.write(output_file)
 
-    grid.write(output_file)
+    #Write parameter file
+    params = {"forcingU": forcingU, "forcingV": forcingV, "forcingH":forcingH, "startD":startD,
+             "Uname":Uname, "Vname":Vname, "Hname":Hname, "Dname":Dname,
+             "dimLon":dimLon, "dimLat":dimLat,"dimTime":dimTime,
+             "Kfile":Kfile, "dK_dxfile":dK_dxfile, "dK_dyfile":dK_dyfile, "dH_dxfile":dH_dxfile, "dH_dyfile":dH_dyfile,
+             "individuals":individuals, "timestep":timestep, "time":time, "start_age":start_age,
+             "output_density":output_density, "output_file":output_file, "random_seed":random_seed, "mode":mode}
+    param_file = open(output_file+"_parameters.txt", "w")
+    for p, val in params.items():
+        param_file.write("%s %s\n" % (p, val))
+    param_file.close()
 
 
 def Create_Particle_Class(type=JITParticle):
