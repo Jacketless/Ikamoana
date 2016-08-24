@@ -1,6 +1,9 @@
 import numpy as np
+import struct
 from parcels.field import Field
 from parcels.grid import Grid
+from netCDF4 import num2date
+from datetime import datetime
 
 def V_max(monthly_age, a=0.7343607395421234, b=0.5006692114850767):
     L = GetLengthFromAge(monthly_age)
@@ -100,3 +103,207 @@ def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
     grid.add_field(K)
 
     return grid
+
+
+def Field_from_DYM(filename, name=None, xlim=None, ylim=None, fromyear=None, frommonth=0, toyear=None, tomonth=0):
+
+    if name is None:
+        name = str.split(filename, '/')[-1]
+    print("Name = %s" % name)
+
+    def lat_to_j(lat, latmax, deltaY):
+        j = (int) ((latmax - lat)/deltaY + 1.5)
+        return j-1
+
+    def lon_to_i(lon, lonmin, deltaX):
+        if lon < 0:
+            lon = lon+360
+        i = (int) ((lon - lonmin)/deltaX + 1.5)
+        return i-1
+
+    def get_tcount_start(zlevel, nlevel, date):
+        n = 0
+        while date > zlevel[n] and n < (nlevel-1):
+            n += 1
+        return n
+
+    def get_tcount_end(zlevel, nlevel, date):
+        n = nlevel-1
+        while date < zlevel[n] and n > 0:
+            n -= 1
+        return n
+
+    class DymReader:
+        # Map well-known type names into struct format characters.
+        typeNames = {
+        'int32'  :'i',
+        'uint32' :'I',
+        'int64'  :'q',
+        'uint64' :'Q',
+        'float'  :'f',
+        'double' :'d',
+        'char'   :'s'}
+
+        DymInputSize = 4
+
+        def __init__(self, fileName):
+            self.file = open(fileName, 'rb')
+
+        def read(self, typeName):
+            typeFormat = DymReader.typeNames[typeName.lower()]
+            scale = 1
+            if(typeFormat is 's'):
+                scale = self.DymInputSize
+            typeSize = struct.calcsize(typeFormat) * scale
+            value = self.file.read(typeSize)
+            decoded = struct.unpack(typeFormat*scale, value)
+            #print(decoded)
+            decoded = [x for x in decoded]
+
+            if(typeFormat is 's'):
+                decoded = ''.join(decoded)
+                return decoded
+            return decoded[0]
+
+        def move(self, pos):
+            self.file.seek(pos, 1)
+
+        def close(self):
+            self.file.close()
+
+    if xlim is not None:
+        x1 = xlim[0]
+        x2 = xlim[1]
+    else:
+        x1 = x2 = 0
+
+    if ylim is not None:
+        y1 = ylim[0]
+        y2 = ylim[1]
+    else:
+        y1 = y2 = 0
+
+    file = DymReader(filename)
+
+    # Get header
+    print("-- Reading .dym file --")
+    idformat = file.read('char')
+    print("ID Format = %s" % idformat)
+    idfunc = file.read('int32')
+    print("IF Function = %s" % idfunc)
+    minval = file.read('float')
+    print("minval = %s" % minval)
+    maxval = file.read('float')
+    print("maxval = %s" % maxval)
+    nlon = file.read('int32')
+    print("nlon = %s" % nlon)
+    nlat = file.read('int32')
+    print("nlat = %s" % nlat)
+    nlevel = file.read('int32')
+    print("nlevel = %s" % nlevel)
+    startdate = file.read('float')
+    print("startdate = %s" % startdate)
+    enddate = file.read('float')
+    print("enddate = %s" % enddate)
+
+    if fromyear is None:
+        fromyear = np.floor(startdate)
+    if toyear is None:
+        toyear = np.floor(enddate)
+
+    x = np.zeros([nlat, nlon], dtype=np.float32)
+    y = np.zeros([nlat, nlon], dtype=np.float32)
+
+    for i in range(nlat):
+        for j in range(nlon):
+            x[i, j] = file.read('float')
+
+    for i in range(nlat):
+        for j in range(nlon):
+            y[i, j] = file.read('float')
+
+    dx = x[0, 1] - x[0, 0]
+    dy = y[0, 0] - y[1, 0]
+
+    i1 = lon_to_i(x1, x[0, 0], dx)
+    i2 = lon_to_i(x2, x[0, 0], dx)
+    j1 = lat_to_j(y2, y[0, 0], dy)
+    j2 = lat_to_j(y1, y[0, 0], dy)
+    if xlim is None:
+        i1 = 0
+        i2 = nlon
+    if ylim is None:
+        j1 = 0
+        j2 = nlat
+    nlon_new = i2 - i1
+    nlat_new = j2 - j1
+
+    if xlim is None:
+        nlon_new = nlon
+        nlat_new = nlat
+        i1 = 0
+        i2 = nlon
+        j1 = 0
+        j2 = nlat
+
+    for j in range(nlat_new):
+        for i in range(nlon_new):
+            x[j, i] = x[j+j1, i+i1]
+            y[j, i] = y[j+j1, i+i1]
+
+    mask = np.zeros([nlat_new, nlon_new], dtype=np.float32)
+
+    zlevel = np.zeros(nlevel, dtype=np.float32)
+    for n in range(nlevel):
+        zlevel[n] = file.read('float')
+    nlevel_new = nlevel
+    ts1 = 0
+    firstdate = fromyear + (frommonth-1)/12  #start at the beginning of a given month
+    lastdate = toyear + tomonth/12  ## stop at the end of a given month
+    ts1 = get_tcount_start(zlevel, nlevel, firstdate)
+    ts2 = get_tcount_end(zlevel, nlevel, lastdate)
+    nlevel_new = ts2-ts1+1
+
+    zlevel_new = np.zeros(nlevel_new, dtype=np.float32)
+    for n in range(nlevel_new):
+        zlevel_new[n] = zlevel[n+ts1]
+
+    for j in range(nlat):
+        for i in range(nlon):
+            temp = file.read('int32')
+            if i2 > i >= i1 and j2 > j >= j1:
+                mask[j-j1, i-i1] = temp
+
+    data = np.zeros([nlevel_new, nlat_new, nlon_new], dtype=np.float32)
+    t_count = ts1
+    if t_count < 0:
+        t_count = 0
+
+    print("Start reading data time series skipping %s and reading for %s time steps" % (t_count, nlevel_new))
+
+    nbytetoskip = nlon*nlat*t_count * 4
+    file.move(nbytetoskip)
+
+    val = 0
+    for n in range(nlevel_new):
+        for j in range(nlat)[::-1]:
+            for i in range(nlon):
+                val = file.read('float')
+                if i2 > i >= i1 and j2 > j >= j1:
+                    data[n, j-j1, i-i1] = val*1852/(30*24*60*60)  #Convert from nm/m to m/s
+
+    file.close()
+
+
+    # Create datetime objects for t index
+    times = [0] * nlevel_new
+    dt = np.round((enddate-startdate)/nlevel*365)
+    for t in range(nlevel_new):
+        times[t] = datetime(int(fromyear + np.floor(t/12)), (t%12)+1, 15, 0, 0, 0)
+    origin = datetime(1970, 1, 1, 0, 0, 0)
+    times_in_s = times
+    for t in range(len(times)):
+        times_in_s[t] = (times[t] - origin).total_seconds()
+    times_in_s = np.array(times_in_s, dtype=np.float32)
+
+    return Field(name, data, lon=x[0,:], lat=y[:,0][::-1], time=times_in_s, time_origin=origin)

@@ -45,7 +45,11 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
         K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60)
         grid.add_field(K)
     else:
-        grid.add_field(Field.from_netcdf('K', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'K'}, glob(str(path.local(Kfile)))))
+        print(Kfile[-3:])
+        if Kfile[-3:] == 'dym':
+            grid.add_field(Field_from_DYM(Kfile, 'K'))
+        else:
+            grid.add_field(Field.from_netcdf('K', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'K'}, glob(str(path.local(Kfile)))))
 
     print(dH_dxfile)
     print(dH_dyfile)
@@ -70,7 +74,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
         grid.add_field(Field.from_netcdf('dK_dx', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'dK_dx'}, glob(str(path.local(dK_dxfile)))))
         grid.add_field(Field.from_netcdf('dK_dy', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'dK_dy'}, glob(str(path.local(dK_dyfile)))))
 
-    ParticleClass = JITParticle if mode == 'jit' else Particle
+    ParticleClass = JITParticle if mode == 'jit' else ScipyParticle
     SKJ = Create_Particle_Class(ParticleClass)
 
     #if startD is not None:

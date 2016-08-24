@@ -57,6 +57,10 @@ if __name__ == "__main__":
 
     print('Beginning Simulations')
     for rep in plist['reps']:
+        if plist['reps'] > 1:
+            outputname = plist['output']+str(rep)
+        else:
+            outputname = plist['output']
         SIMPODYM(forcingU=plist['Ufile'], forcingV=plist['Vfile'], forcingH=plist['Hfile'],
                  startD=plist['starting_density_file'], Dname=plist['density_var_name'], output_density=plist['write_density'],
                  Uname=plist['Uvar_name'], Vname=plist['Vvar_name'], Hname=plist['Hvar_name'],
@@ -65,4 +69,4 @@ if __name__ == "__main__":
                  dH_dxfile=plist['dHdx_file'], dH_dyfile=plist['dHdy_file'],
                  individuals=int(plist['individuals']), timestep=float(plist['timestep']), time=int(float(plist['time '])),
                  start_age=float(plist['start_age']),
-                 output_file=plist['output']+str(rep), mode=plist['mode'])
+                 output_file=outputname, mode=plist['mode'], write_grid=plist['write_grid'])

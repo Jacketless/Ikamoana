@@ -12,7 +12,7 @@ def AgeParticle(particle, grid, time, dt):
     if particle.age - (particle.monthly_age*30*24*60*60) > (30*24*60*60):
         particle.monthly_age += 1
         particle.Vmax = V_max(particle.monthly_age)
-        particle.fish *= 1-Mortality(particle.monthly_age, H=particle.H)
+        particle.fish *= 1-Mortality_C(particle.monthly_age, particle.H)
 
 
 def RK4(fieldx, fieldy, lon, lat, time, dt):

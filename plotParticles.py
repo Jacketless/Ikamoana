@@ -67,12 +67,12 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
                          levels=np.linspace(0, np.max(bVar[time, 0, :, :]), 100), xlim=[limits[0], limits[1]],
                          ylim=[limits[2], limits[3]], cmap=cmap)
             plt.plot(np.transpose(lon[indices,:]), np.transpose(lat[indices,:]), '.-', linewidth=psize,
-                     markersize=psize)#, c='black')
+                     markersize=psize, c='blue')
             plt.xlim([limits[0], limits[1]])
             plt.ylim([limits[2], limits[3]])
         else:
             plt.plot(np.transpose(lon), np.transpose(lat), '.-', linewidth=psize,
-                     markersize=psize)
+                     markersize=psize, c='blue')
             plt.xlim([limits[0], limits[1]])
             plt.ylim([limits[2], limits[3]])
 
@@ -93,6 +93,10 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
         ax.set_ylim(limits[2], limits[3])
         scat = ax.scatter(lon[:, 0], lat[:, 0], s=psize, c='black')
 
+        # Offline calc contours
+
+        #for t in
+
         def animate(i):
             ax.cla()
             if drawland:
@@ -101,10 +105,11 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
             if recordedvar is not 'none':
                 scat = ax.scatter(lon[:, i], lat[:, i], s=psize, c=record[:, i], cmap=rcmap, vmin=0, vmax=1)
             else:
-                scat = ax.scatter(lon[:, i], lat[:, i], s=psize, c='white', edgecolors='black')
+                scat = ax.scatter(lon[:, i], lat[:, i], s=psize, c='blue', edgecolors='black')
             ax.set_xlim([limits[0], limits[1]])
             ax.set_ylim([limits[2], limits[3]])
             if backgroundfield is not 'none':
+
                 field_time = np.argmax(bT > time[0, i]) - 1
                 plt.contourf(bX[:], bY[:], bVar[field_time, 0, :, :], zorder=-1, vmin=0, vmax=np.max(bVar[field_time, 0, :, :]),
                              levels=np.linspace(0, np.max(bVar[field_time, 0, :, :]), 100), xlim=[limits[0], limits[1]],
