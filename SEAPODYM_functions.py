@@ -11,6 +11,14 @@ def V_max(monthly_age, a=0.7343607395421234, b=0.5006692114850767):
     return V
 
 
+def V_max_C(monthly_age):
+    a=0.7343607395421234
+    b=0.5006692114850767
+    L = GetLengthFromAge(monthly_age)
+    V = a * math.pow(L, b)
+    return V
+
+
 def GetLengthFromAge(monthly_age):
     # Linf = 88.317
     # K = 0.1965
@@ -39,8 +47,8 @@ def Mortality_C(age, H):
     MSmax=0.006109001382111822
     MSslope=0.8158285706493162
     Mrange=1.430156372206337e-05
-    Mnat = MPmax*np.exp(-MPexp*age) + MSmax*np.power(age, MSslope)
-    Mvar = Mnat * np.power(1 - Mrange, 1-H/2)
+    Mnat = MPmax*math.exp(-MPexp*age) + MSmax*math.pow(age, MSslope)
+    Mvar = Mnat * math.pow(1 - Mrange, 1-H/2)
     return Mvar
 
 
