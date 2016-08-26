@@ -11,7 +11,7 @@ def AgeParticle(particle, grid, time, dt):
     particle.age += dt
     if particle.age - (particle.monthly_age*30*24*60*60) > (30*24*60*60):
         particle.monthly_age += 1
-        particle.Vmax = V_max(particle.monthly_age)
+        particle.Vmax = V_max_C(particle.monthly_age)
         particle.fish *= 1-Mortality_C(particle.monthly_age, particle.H)
 
 

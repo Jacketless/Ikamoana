@@ -16,6 +16,8 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
     lat = pfile.variables['lat']
     time = pfile.variables['time']
     z = pfile.variables['z']
+    active = pfile.variables['active']
+
     if display is not 'none':
         title = pfile.variables[display]
 
@@ -61,7 +63,8 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
     elif mode == '2d':
         if backgroundfield is not 'none':
             #subsample
-            indices = np.rint(np.linspace(0, len(lon)-1, 500)).astype(int)
+            #indices = np.rint(np.linspace(0, len(lon)-1, 500)).astype(int)
+            indices = range(len(lon[:,0]))
             time=18
             plt.contourf(bX[:], bY[:], bVar[time, 0, :, :], zorder=-1, vmin=0, vmax=np.max(bVar[time, 0, :, :]),
                          levels=np.linspace(0, np.max(bVar[time, 0, :, :]), 100), xlim=[limits[0], limits[1]],
@@ -93,19 +96,18 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
         ax.set_ylim(limits[2], limits[3])
         scat = ax.scatter(lon[:, 0], lat[:, 0], s=psize, c='black')
 
-        # Offline calc contours
-
-        #for t in
+        # Offline calc contours still to do
 
         def animate(i):
             ax.cla()
+            active_list = active[:, i] > 0
             if drawland:
                 m.drawcoastlines()
                 m.fillcontinents(color='forestgreen', lake_color='aqua')
             if recordedvar is not 'none':
-                scat = ax.scatter(lon[:, i], lat[:, i], s=psize, c=record[:, i], cmap=rcmap, vmin=0, vmax=1)
+                scat = ax.scatter(lon[active_list, i], lat[active_list, i], s=psize, c=record[active_list, i], cmap=rcmap, vmin=0, vmax=1)
             else:
-                scat = ax.scatter(lon[:, i], lat[:, i], s=psize, c='blue', edgecolors='black')
+                scat = ax.scatter(lon[active_list, i], lat[active_list, i], s=psize, c='blue', edgecolors='black')
             ax.set_xlim([limits[0], limits[1]])
             ax.set_ylim([limits[2], limits[3]])
             if backgroundfield is not 'none':
