@@ -88,13 +88,13 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
 
     age = fishset.Kernel(AgeParticle)
     diffuse = fishset.Kernel(LagrangianDiffusion)
-    advect = fishset.Kernel(Advection)
-    follow_gradient_rk4 = fishset.Kernel(GradientRK4)
+    advect = fishset.Kernel(Advection_C)
+    taxis = fishset.Kernel(GradientRK4_C)
     move = fishset.Kernel(Move)
     sampH = fishset.Kernel(SampleH)
 
     print("Starting Sim")
-    fishset.execute(sampH + age + follow_gradient_rk4 + advect + diffuse + move, endtime=fishset.grid.time[0]+time*timestep, dt=timestep,
+    fishset.execute(age + advect + taxis + diffuse + move, endtime=fishset.grid.time[0]+time*timestep, dt=timestep,
                     output_file=fishset.ParticleFile(name=output_file+"_results"),
                     interval=timestep)#, density_field=density_field)
     if write_grid:
@@ -116,16 +116,20 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
 def Create_Particle_Class(type=JITParticle):
 
     class SEAPODYM_SKJ(type):
-        user_vars = {'H': np.float32, 'monthly_age': np.float32, 'age': np.float32, 'fish': np.float32, 'Vmax': np.float32,
-                     'Vx': np.float32, 'Vy': np.float32,
-                     'Dx': np.float32, 'Dy': np.float32,
-                     'Ax': np.float32, 'Ay': np.float32,
-                     'Cx': np.float32, 'Cy': np.float32}
-        monthly_age = 4
-        age = 4.*30*24*60*60
-        Vmax = 0.
-        Dv_max = 0.
-        ready4M = False
+        monthly_age = Variable("monthly_age", dtype=np.int32)
+        age = Variable('age')
+        Vmax = Variable('Vmax')
+        Dv_max = Variable('Dv_max')
+        fish = Variable('fish')
+        H = Variable('H')
+        Dx = Variable('Dx')
+        Dy = Variable('Dy')
+        Cx = Variable('Cx')
+        Cy = Variable('Cy')
+        Vx = Variable('Vx')
+        Vy = Variable('Vy')
+        Ax = Variable('Ax')
+        Ay = Variable('Ay')
 
         def __init__(self, *args, **kwargs):
             """Custom initialisation function which calls the base
@@ -133,6 +137,7 @@ def Create_Particle_Class(type=JITParticle):
             super(SEAPODYM_SKJ, self).__init__(*args, **kwargs)
             self.setAge(4.)
             self.fish = 100000
+            self.H = self.Dx = self.Dy = self.Cx = self.Cy = self.Vx = self.Vy = self.Ax = self.Ay = 0
 
         def setAge(self, months):
             self.age = months*30*24*60*60
@@ -167,10 +172,10 @@ if __name__ == "__main__":
                    help='List of dimensions across which field variables occur, as given in the NetCDF files, to map to the --dimensions args')
     p.add_argument('-s', '--startfield', type=str, default='SEAPODYM_Forcing_Data/SEAPODYM2003_DENSITY_Prepped.nc',
                    help='Particle density field with which to initiate particle positions')
-    p.add_argument('-o', '--output', default='SIMPODYM1997',
+    p.add_argument('-o', '--output', default='SIMPODYM2003',
                    help='List of NetCDF files to load')
-    p.add_argument('-ts', '--timestep', type=int, default=86400,
-                   help='Length of timestep in seconds, defaults to one day')
+    p.add_argument('-ts', '--timestep', type=int, default=172800,
+                   help='Length of timestep in seconds, defaults to two days')
     args = p.parse_args()
     filename = args.output
 
