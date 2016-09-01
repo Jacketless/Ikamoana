@@ -15,7 +15,7 @@ if __name__ == "__main__":
             'londim_name', 'latdim_name', 'timedim_name',
             'starting_density_file', 'density_var_name', 'calculate_density',
             'write_density', 'write_grid',
-            'Kfile', 'dKdx_file', 'dKdy_file']
+            'Kfile', 'dKdx_file', 'dKdy_file', 'diffusion_boost']
 
     plist = {}
     for p in list:
@@ -42,6 +42,8 @@ if __name__ == "__main__":
         plist['start_age'] = 4
     if plist['write_grid'] is None:
         plist['write_grid'] = False
+    if plist['diffusion_boost'] is None:
+        plist['diffusion_boost'] = 0
 
     # Check that key params exist
     key_params = ['Ufile', 'Vfile', 'Hfile', 'Uvar_name', 'Vvar_name', 'Hvar_name',
@@ -65,7 +67,7 @@ if __name__ == "__main__":
                  startD=plist['starting_density_file'], Dname=plist['density_var_name'], output_density=plist['write_density'],
                  Uname=plist['Uvar_name'], Vname=plist['Vvar_name'], Hname=plist['Hvar_name'],
                  dimLon=plist['londim_name'], dimLat=plist['latdim_name'], dimTime=plist['timedim_name'],
-                 Kfile=plist['Kfile'], dK_dxfile=plist['dKdx_file'], dK_dyfile=plist['dKdy_file'],
+                 Kfile=plist['Kfile'], dK_dxfile=plist['dKdx_file'], dK_dyfile=plist['dKdy_file'], diffusion_boost=plist['diffusion_boost'],
                  dH_dxfile=plist['dHdx_file'], dH_dyfile=plist['dHdy_file'],
                  individuals=int(plist['individuals']), timestep=float(plist['timestep']), time=int(float(plist['time '])),
                  start_age=float(plist['start_age']),

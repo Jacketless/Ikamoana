@@ -11,6 +11,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
              Uname='u', Vname='v', Hname='habitat', Dname='density',
              dimLon='lon', dimLat='lat',dimTime='time',
              Kfile=None, dK_dxfile=None, dK_dyfile=None, dH_dxfile=None, dH_dyfile=None,
+             diffusion_boost=0,
              individuals=100, timestep=172800, time=30, start_age=4,
              output_density=False, output_file="SIMPODYM", write_grid=False,
              random_seed=None, mode='jit'):
@@ -42,7 +43,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
     # Offline calculate the 'diffusion' grid as a function of habitat
     if Kfile is None:
         print("Creating Diffusion Field")
-        K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60)
+        K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60, diffusion_boost=diffusion_boost)
         grid.add_field(K)
     else:
         print(Kfile[-3:])
@@ -171,6 +172,9 @@ if __name__ == "__main__":
                    help='List of NetCDF files to load')
     p.add_argument('-ts', '--timestep', type=int, default=86400,
                    help='Length of timestep in seconds, defaults to one day')
+    p.add_argument('-b', '--boost', type=float, default=0,
+                   help='Constant boost to diffusivity of tuna')
+
     args = p.parse_args()
     filename = args.output
 
@@ -183,4 +187,5 @@ if __name__ == "__main__":
     SIMPODYM(forcingU=U, forcingV=V, forcingH=H, startD=args.startfield,
              Uname=args.netcdf_vars[0], Vname=args.netcdf_vars[1], Hname=args.netcdf_vars[2],
              dimLat=args.dimensions[0], dimLon=args.dimensions[1], dimTime=args.dimensions[2],
+             diffusion_boost=args.boost,
              individuals=args.particles, timestep=args.timestep, time=args.time, output_file=args.output, mode=args.mode)
