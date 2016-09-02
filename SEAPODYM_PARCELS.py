@@ -52,8 +52,6 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
         else:
             grid.add_field(Field.from_netcdf('K', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'K'}, glob(str(path.local(Kfile)))))
 
-    print(dH_dxfile)
-    print(dH_dyfile)
     if dH_dxfile is None or dH_dyfile is None:
         # Offline calculation of the diffusion and basic habitat grid
         print("Calculating H Gradient Fields")
@@ -105,7 +103,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
     params = {"forcingU": forcingU, "forcingV": forcingV, "forcingH":forcingH, "startD":startD,
              "Uname":Uname, "Vname":Vname, "Hname":Hname, "Dname":Dname,
              "dimLon":dimLon, "dimLat":dimLat,"dimTime":dimTime,
-             "Kfile":Kfile, "dK_dxfile":dK_dxfile, "dK_dyfile":dK_dyfile, "dH_dxfile":dH_dxfile, "dH_dyfile":dH_dyfile,
+             "Kfile":Kfile, "dK_dxfile":dK_dxfile, "dK_dyfile":dK_dyfile, "diffusion_boost":diffusion_boost, "dH_dxfile":dH_dxfile, "dH_dyfile":dH_dyfile,
              "individuals":individuals, "timestep":timestep, "time":time, "start_age":start_age,
              "output_density":output_density, "output_file":output_file, "random_seed":random_seed, "mode":mode}
     param_file = open(output_file+"_parameters.txt", "w")
@@ -175,8 +173,8 @@ if __name__ == "__main__":
                    help='Particle density field with which to initiate particle positions')
     p.add_argument('-o', '--output', default='SIMPODYM2003',
                    help='List of NetCDF files to load')
-    p.add_argument('-ts', '--timestep', type=int, default=86400,
-                   help='Length of timestep in seconds, defaults to one day')
+    p.add_argument('-ts', '--timestep', type=int, default=172800,
+                   help='Length of timestep in seconds, defaults to two days')
     p.add_argument('-b', '--boost', type=float, default=0,
                    help='Constant boost to diffusivity of tuna')
 
