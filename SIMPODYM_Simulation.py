@@ -15,7 +15,7 @@ if __name__ == "__main__":
             'londim_name', 'latdim_name', 'timedim_name',
             'starting_density_file', 'density_var_name', 'calculate_density',
             'write_density', 'write_grid',
-            'Kfile', 'dKdx_file', 'dKdy_file', 'diffusion_boost']
+            'Kfile', 'dKdx_file', 'dKdy_file', 'diffusion_boost', 'taxis_dampener']
 
     plist = {}
     for p in list:
@@ -44,6 +44,8 @@ if __name__ == "__main__":
         plist['write_grid'] = False
     if plist['diffusion_boost'] is None:
         plist['diffusion_boost'] = 0
+    if plist['taxis_dampener'] is None:
+        plist['taxis_dampener'] = 0
 
     # Check that key params exist
     key_params = ['Ufile', 'Vfile', 'Hfile', 'Uvar_name', 'Vvar_name', 'Hvar_name',

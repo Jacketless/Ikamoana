@@ -11,7 +11,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
              Uname='u', Vname='v', Hname='habitat', Dname='density',
              dimLon='lon', dimLat='lat',dimTime='time',
              Kfile=None, dK_dxfile=None, dK_dyfile=None, dH_dxfile=None, dH_dyfile=None,
-             diffusion_boost=0,
+             diffusion_boost=0, taxis_dampener=0,
              individuals=100, timestep=172800, time=30, start_age=4,
              output_density=False, output_file="SIMPODYM", write_grid=False,
              random_seed=None, mode='jit'):
@@ -84,6 +84,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
 
     for p in fishset.particles:
         p.setAge(start_age)
+        p.taxis_dampen = taxis_dampener
 
     age = fishset.Kernel(AgeParticle)
     diffuse = fishset.Kernel(LagrangianDiffusion)
@@ -103,7 +104,8 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
     params = {"forcingU": forcingU, "forcingV": forcingV, "forcingH":forcingH, "startD":startD,
              "Uname":Uname, "Vname":Vname, "Hname":Hname, "Dname":Dname,
              "dimLon":dimLon, "dimLat":dimLat,"dimTime":dimTime,
-             "Kfile":Kfile, "dK_dxfile":dK_dxfile, "dK_dyfile":dK_dyfile, "diffusion_boost":diffusion_boost, "dH_dxfile":dH_dxfile, "dH_dyfile":dH_dyfile,
+             "Kfile":Kfile, "dK_dxfile":dK_dxfile, "dK_dyfile":dK_dyfile, "diffusion_boost":diffusion_boost,
+             "dH_dxfile":dH_dxfile, "dH_dyfile":dH_dyfile, "taxis_dampener":taxis_dampener,
              "individuals":individuals, "timestep":timestep, "time":time, "start_age":start_age,
              "output_density":output_density, "output_file":output_file, "random_seed":random_seed, "mode":mode}
     param_file = open(output_file+"_parameters.txt", "w")
@@ -129,6 +131,7 @@ def Create_Particle_Class(type=JITParticle):
         Vy = Variable('Vy')
         Ax = Variable('Ax')
         Ay = Variable('Ay')
+        taxis_dampen = Variable('taxis_dampen')
 
         def __init__(self, *args, **kwargs):
             """Custom initialisation function which calls the base
@@ -137,6 +140,7 @@ def Create_Particle_Class(type=JITParticle):
             self.setAge(4.)
             self.fish = 100000
             self.H = self.Dx = self.Dy = self.Cx = self.Cy = self.Vx = self.Vy = self.Ax = self.Ay = 0
+            self.taxis_dampen = 0
 
         def setAge(self, months):
             self.age = months*30*24*60*60
@@ -177,6 +181,8 @@ if __name__ == "__main__":
                    help='Length of timestep in seconds, defaults to two days')
     p.add_argument('-b', '--boost', type=float, default=0,
                    help='Constant boost to diffusivity of tuna')
+    p.add_argument('-td', '--taxis_dampener', type=float, default=0,
+                   help='Constant reduction to taxis of tuna')
 
     args = p.parse_args()
     filename = args.output
@@ -190,5 +196,5 @@ if __name__ == "__main__":
     SIMPODYM(forcingU=U, forcingV=V, forcingH=H, startD=args.startfield,
              Uname=args.netcdf_vars[0], Vname=args.netcdf_vars[1], Hname=args.netcdf_vars[2],
              dimLat=args.dimensions[0], dimLon=args.dimensions[1], dimTime=args.dimensions[2],
-             diffusion_boost=args.boost,
+             diffusion_boost=args.boost, taxis_dampener=args.taxis_dampener,
              individuals=args.particles, timestep=args.timestep, time=args.time, output_file=args.output, mode=args.mode)
