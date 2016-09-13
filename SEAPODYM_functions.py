@@ -28,11 +28,11 @@ def GetLengthFromAge(monthly_age):
                41.99, 45.27, 48.33, 51.19, 53.86, 56.36, 58.70, 60.88, 62.92, 64.83,
                66.61, 68.27, 69.83, 71.28, 72.64, 73.91, 75.10, 76.21, 77.25, 78.22,
                79.12, 79.97, 80.76, 81.50, 82.19, 82.83, 83.44, 84.00, 84.53, 85.02,
-               85.48, 85.91, 86.31, 86.69, 87.04, 87.37, 87.68, 87.96, 89.42, 89.42, 89.42, 89.42,
-               89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42,
-               89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42,
-               89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42]
-    return lengths[monthly_age-1]/100 # Convert to meters
+               85.48, 85.91, 86.31, 86.69, 87.04, 87.37, 87.68, 87.96, 89.42]
+    if monthly_age > 49:
+        return 89.42/100
+    else:
+        return lengths[monthly_age-1]/100 # Convert to meters
 
 
 def Mortality(age, MPmax=0.3, MPexp=0.1008314958945224, MSmax=0.006109001382111822, MSslope=0.8158285706493162,
@@ -59,7 +59,7 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
     age = months*30*24*60*60
     for t in range(H.time.size):
         # Increase age in months if required, to incorporate appropriate Vmax
-        age = H.time[t] - H.time[0]
+        age = H.time[t] - H.time[0] + start_age*30*24*60*60
         if age - (months*30*24*60*60) > (30*24*60*60):
             months += 1
         print("Calculating diffusivity for fish aged %s months" % months)

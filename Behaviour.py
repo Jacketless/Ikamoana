@@ -100,8 +100,8 @@ def GradientRK4_C(particle, grid, time, dt):
     # u4, v4 = (grid.dH_dx[time + dt, lon3, lat3], grid.dH_dy[time + dt, lon3, lat3])
     # Vx = (u1 + 2*u2 + 2*u3 + u4) / 6.
     # Vy = (v1 + 2*v2 + 2*v3 + v4) / 6.
-    particle.Vx = grid.dH_dx[time, particle.lon, particle.lat] * particle.Vmax * f_lon * (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * particle.taxis_dampen
-    particle.Vy = grid.dH_dy[time, particle.lon, particle.lat] * particle.Vmax * f_lat * (1000*1.852*60) * particle.taxis_dampen
+    particle.Vx = grid.dH_dx[time, particle.lon, particle.lat] * particle.Vmax * f_lon * (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * particle.taxis_scale
+    particle.Vy = grid.dH_dy[time, particle.lon, particle.lat] * particle.Vmax * f_lat * (1000*1.852*60) * particle.taxis_scale
     #particle.Vx = Vx #* particle.Vmax #* (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * f_lon
     #particle.Vy = Vy #* particle.Vmax * (1000*1.852*60) * f_lat
 

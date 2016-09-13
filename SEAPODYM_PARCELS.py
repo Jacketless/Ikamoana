@@ -11,7 +11,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
              Uname='u', Vname='v', Hname='habitat', Dname='density',
              dimLon='lon', dimLat='lat',dimTime='time',
              Kfile=None, dK_dxfile=None, dK_dyfile=None, dH_dxfile=None, dH_dyfile=None,
-             diffusion_boost=0, taxis_dampener=0,
+             diffusion_boost=0, diffusion_scale=1, taxis_scale=1,
              individuals=100, timestep=172800, time=30, start_age=4,
              output_density=False, output_file="SIMPODYM", write_grid=False,
              random_seed=None, mode='jit'):
@@ -43,14 +43,16 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
     # Offline calculate the 'diffusion' grid as a function of habitat
     if Kfile is None:
         print("Creating Diffusion Field")
-        K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60, diffusion_boost=diffusion_boost)
+        K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60, start_age=start_age, diffusion_boost=diffusion_boost)
         grid.add_field(K)
     else:
         print(Kfile[-3:])
         if Kfile[-3:] == 'dym':
-            grid.add_field(Field_from_DYM(Kfile, 'K'))
+            grid.add_field()
         else:
             grid.add_field(Field.from_netcdf('K', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'K'}, glob(str(path.local(Kfile)))))
+    print(diffusion_scale)
+    grid.K.data *= diffusion_scale
 
     if dH_dxfile is None or dH_dyfile is None:
         # Offline calculation of the diffusion and basic habitat grid
@@ -73,6 +75,13 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
         grid.add_field(Field.from_netcdf('dK_dx', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'dK_dx'}, glob(str(path.local(dK_dxfile)))))
         grid.add_field(Field.from_netcdf('dK_dy', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'dK_dy'}, glob(str(path.local(dK_dyfile)))))
 
+    grid.K.interp_method = 'nearest'
+    grid.dK_dx.interp_method = 'nearest'
+    grid.dK_dy.interp_method = 'nearest'
+    grid.H.interp_method = 'nearest'
+    grid.dH_dx.interp_method = 'nearest'
+    grid.dH_dx.interp_method = 'nearest'
+
     ParticleClass = JITParticle if mode == 'jit' else ScipyParticle
     SKJ = Create_Particle_Class(ParticleClass)
 
@@ -84,7 +93,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
 
     for p in fishset.particles:
         p.setAge(start_age)
-        p.taxis_dampen = taxis_dampener
+        p.taxis_scale = taxis_scale
 
     age = fishset.Kernel(AgeParticle)
     diffuse = fishset.Kernel(LagrangianDiffusion)
@@ -93,19 +102,20 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
     move = fishset.Kernel(Move)
     sampH = fishset.Kernel(SampleH)
 
+    if write_grid:
+        grid.write(output_file)
     print("Starting Sim")
     fishset.execute(age + advect + taxis + diffuse + move, endtime=fishset.grid.time[0]+time*timestep, dt=timestep,
                     output_file=fishset.ParticleFile(name=output_file+"_results"),
                     interval=timestep)#, density_field=density_field)
-    if write_grid:
-        grid.write(output_file)
 
     #Write parameter file
     params = {"forcingU": forcingU, "forcingV": forcingV, "forcingH":forcingH, "startD":startD,
              "Uname":Uname, "Vname":Vname, "Hname":Hname, "Dname":Dname,
              "dimLon":dimLon, "dimLat":dimLat,"dimTime":dimTime,
-             "Kfile":Kfile, "dK_dxfile":dK_dxfile, "dK_dyfile":dK_dyfile, "diffusion_boost":diffusion_boost,
-             "dH_dxfile":dH_dxfile, "dH_dyfile":dH_dyfile, "taxis_dampener":taxis_dampener,
+             "Kfile":Kfile, "dK_dxfile":dK_dxfile, "dK_dyfile":dK_dyfile,
+             "diffusion_boost":diffusion_boost, "diffusion_scale":diffusion_scale,
+             "dH_dxfile":dH_dxfile, "dH_dyfile":dH_dyfile, "taxis_dampener":taxis_scale,
              "individuals":individuals, "timestep":timestep, "time":time, "start_age":start_age,
              "output_density":output_density, "output_file":output_file, "random_seed":random_seed, "mode":mode}
     param_file = open(output_file+"_parameters.txt", "w")
@@ -118,20 +128,20 @@ def Create_Particle_Class(type=JITParticle):
 
     class SEAPODYM_SKJ(type):
         monthly_age = Variable("monthly_age", dtype=np.int32)
-        age = Variable('age')
-        Vmax = Variable('Vmax')
-        Dv_max = Variable('Dv_max')
-        fish = Variable('fish')
-        H = Variable('H')
-        Dx = Variable('Dx')
-        Dy = Variable('Dy')
-        Cx = Variable('Cx')
-        Cy = Variable('Cy')
-        Vx = Variable('Vx')
-        Vy = Variable('Vy')
-        Ax = Variable('Ax')
-        Ay = Variable('Ay')
-        taxis_dampen = Variable('taxis_dampen')
+        age = Variable('age', to_write=False)
+        Vmax = Variable('Vmax', to_write=False)
+        Dv_max = Variable('Dv_max', to_write=False)
+        fish = Variable('fish', to_write=False)
+        H = Variable('H', to_write=False)
+        Dx = Variable('Dx', to_write=False)
+        Dy = Variable('Dy', to_write=False)
+        Cx = Variable('Cx', to_write=False)
+        Cy = Variable('Cy', to_write=False)
+        Vx = Variable('Vx', to_write=False)
+        Vy = Variable('Vy', to_write=False)
+        Ax = Variable('Ax', to_write=False)
+        Ay = Variable('Ay', to_write=False)
+        taxis_scale = Variable('taxis_scale', to_write=False)
 
         def __init__(self, *args, **kwargs):
             """Custom initialisation function which calls the base
@@ -140,7 +150,7 @@ def Create_Particle_Class(type=JITParticle):
             self.setAge(4.)
             self.fish = 100000
             self.H = self.Dx = self.Dy = self.Cx = self.Cy = self.Vx = self.Vy = self.Ax = self.Ay = 0
-            self.taxis_dampen = 0
+            self.taxis_scale = 0
 
         def setAge(self, months):
             self.age = months*30*24*60*60
@@ -181,8 +191,14 @@ if __name__ == "__main__":
                    help='Length of timestep in seconds, defaults to two days')
     p.add_argument('-b', '--boost', type=float, default=0,
                    help='Constant boost to diffusivity of tuna')
-    p.add_argument('-td', '--taxis_dampener', type=float, default=0,
-                   help='Constant reduction to taxis of tuna')
+    p.add_argument('-ds', '--diffusion_boost', type=float, default=1,
+                   help='Constant boost to diffusivity of tuna')
+    p.add_argument('-td', '--taxis_scale', type=float, default=1,
+                   help='Constant scaler to taxis of tuna')
+    p.add_argument('-sa', '--start_age', type=int, default=4,
+                   help='Assumed start age of tuna cohort, in months. Defaults to 4')
+    p.add_argument('-wg', '--write_grid', type=bool, default=False,
+                   help='Flag to write grid files to netcdf, defaults to false')
 
     args = p.parse_args()
     filename = args.output
@@ -196,5 +212,6 @@ if __name__ == "__main__":
     SIMPODYM(forcingU=U, forcingV=V, forcingH=H, startD=args.startfield,
              Uname=args.netcdf_vars[0], Vname=args.netcdf_vars[1], Hname=args.netcdf_vars[2],
              dimLat=args.dimensions[0], dimLon=args.dimensions[1], dimTime=args.dimensions[2],
-             diffusion_boost=args.boost, taxis_dampener=args.taxis_dampener,
-             individuals=args.particles, timestep=args.timestep, time=args.time, output_file=args.output, mode=args.mode)
+             diffusion_boost=args.boost, taxis_scale=args.taxis_scale, start_age=args.start_age,
+             individuals=args.particles, timestep=args.timestep, time=args.time, output_file=args.output,
+             write_grid=args.write_grid, mode=args.mode)

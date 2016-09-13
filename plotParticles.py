@@ -15,8 +15,8 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
     lon = pfile.variables['lon']
     lat = pfile.variables['lat']
     time = pfile.variables['time']
-    z = pfile.variables['z']
-    active = pfile.variables['active']
+    #z = pfile.variables['z']
+    #active = pfile.variables['active']
 
     if display is not 'none':
         title = pfile.variables[display]
@@ -100,7 +100,8 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
 
         def animate(i):
             ax.cla()
-            active_list = active[:, i] > 0
+            #active_list = active[:, i] > 0
+            active_list = range(len(lon[:,i]))
             if drawland:
                 m.drawcoastlines()
                 m.fillcontinents(color='forestgreen', lake_color='aqua')
