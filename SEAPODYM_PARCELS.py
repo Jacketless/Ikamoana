@@ -43,7 +43,8 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
     # Offline calculate the 'diffusion' grid as a function of habitat
     if Kfile is None:
         print("Creating Diffusion Field")
-        K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60, start_age=start_age, diffusion_boost=diffusion_boost)
+        K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60, start_age=start_age,
+                                            diffusion_scale=diffusion_scale, diffusion_boost=diffusion_boost)
         grid.add_field(K)
     else:
         print(Kfile[-3:])
@@ -51,8 +52,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
             grid.add_field()
         else:
             grid.add_field(Field.from_netcdf('K', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'K'}, glob(str(path.local(Kfile)))))
-    print(diffusion_scale)
-    grid.K.data *= diffusion_scale
+            
 
     if dH_dxfile is None or dH_dyfile is None:
         # Offline calculation of the diffusion and basic habitat grid
@@ -191,8 +191,8 @@ if __name__ == "__main__":
                    help='Length of timestep in seconds, defaults to two days')
     p.add_argument('-b', '--boost', type=float, default=0,
                    help='Constant boost to diffusivity of tuna')
-    p.add_argument('-ds', '--diffusion_boost', type=float, default=1,
-                   help='Constant boost to diffusivity of tuna')
+    p.add_argument('-ds', '--diffusion_scale', type=float, default=1,
+                   help='Extra scale parameter to diffusivity of tuna')
     p.add_argument('-td', '--taxis_scale', type=float, default=1,
                    help='Constant scaler to taxis of tuna')
     p.add_argument('-sa', '--start_age', type=int, default=4,
@@ -212,6 +212,6 @@ if __name__ == "__main__":
     SIMPODYM(forcingU=U, forcingV=V, forcingH=H, startD=args.startfield,
              Uname=args.netcdf_vars[0], Vname=args.netcdf_vars[1], Hname=args.netcdf_vars[2],
              dimLat=args.dimensions[0], dimLon=args.dimensions[1], dimTime=args.dimensions[2],
-             diffusion_boost=args.boost, taxis_scale=args.taxis_scale, start_age=args.start_age,
-             individuals=args.particles, timestep=args.timestep, time=args.time, output_file=args.output,
-             write_grid=args.write_grid, mode=args.mode)
+             diffusion_boost=args.boost, diffusion_scale=args.diffusion_scale, taxis_scale=args.taxis_scale,
+             start_age=args.start_age, individuals=args.particles, timestep=args.timestep, time=args.time,
+             output_file=args.output, write_grid=args.write_grid, mode=args.mode)
