@@ -137,7 +137,7 @@ if __name__ == "__main__":
     variables = {'U': args.netcdf_vars[0], 'V': args.netcdf_vars[1]}
     dimensions = {'lon': args.map_dimensions[1], 'lat': args.map_dimensions[0], 'time': args.map_dimensions[2]}
     #files = {'U': ufiles, 'V': vfiles}
-    files = {'U': "/g/data/gb6/BRAN/BRAN_3p5/OFAM/ocean_u_*_*.nc", 'V': "/g/data/gb6/BRAN/BRAN_3p5/OFAM/ocean_v_*_*.nc"}
+    files = {'U': "/g/data/gb6/BRAN/BRAN_3p5/OFAM/ocean_u_*.nc", 'V': "/g/data/gb6/BRAN/BRAN_3p5/OFAM/ocean_v_*.nc"}
 
     grid = Grid.from_netcdf(filenames=files, variables=variables, dimensions=dimensions, vmin=-200, vmax=200)
 
