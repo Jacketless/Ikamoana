@@ -134,7 +134,6 @@ if __name__ == "__main__":
             month = 1
             year += 1
 
-    print(files)
     variables = {'U': args.netcdf_vars[0], 'V': args.netcdf_vars[1]}
     dimensions = {'lon': args.map_dimensions[1], 'lat': args.map_dimensions[0], 'time': args.map_dimensions[2]}
 
