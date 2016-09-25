@@ -61,9 +61,9 @@ if __name__ == "__main__":
                    help='List of NetCDF files to load')
     p.add_argument('-de', '--deployment_file', default="Test_FAD_Deployments.txt",
                    help='List of NetCDF files to load')
-    p.add_argument('-v', '--variables', default=['U', 'V', 'H'],
+    p.add_argument('-v', '--variables', default=['U', 'V'],
                    help='List of field variables to extract, using PARCELS naming convention')
-    p.add_argument('-n', '--netcdf_vars', default=['u', 'v', 'phy'],
+    p.add_argument('-n', '--netcdf_vars', default=['u', 'v'],
                    help='List of field variable names, as given in the NetCDF file. Order must match --variables args')
     p.add_argument('-d', '--dimensions', default=['lat', 'lon', 'time'],
                    help='List of PARCELS convention named dimensions across which field variables occur')
@@ -89,25 +89,60 @@ if __name__ == "__main__":
     variables = {'U': args.netcdf_vars[0], 'V': args.netcdf_vars[1]}
     dimensions = {'lon': args.map_dimensions[1], 'lat': args.map_dimensions[0], 'time': args.map_dimensions[2]}
 
-    grid = Grid.from_netcdf(filenames=filenames, variables=variables, dimensions=dimensions, vmin=-200, vmax=200)
-
     # Load FAD deployment data
     D_file = open(args.deployment_file, 'r')
     vars = D_file.readline().split()
     D_vars = {}
     print("Deployment file contains:")
     for v in vars:
-        print("- %s" % v)
+        #print("- %s" % v)
         D_vars.update({v: []})
     for line in D_file:
         for v in range(len(vars)):
             D_vars[vars[v]].append(line.split()[v])
     N_FADs = len(D_vars['"time"'])
+    print("Loaded %s FAD deployments" % N_FADs)
 
     times = [float(v) for v in D_vars['"time"']]
-    shift = (datetime(1992,1,1) - datetime(1970,1,1)).total_seconds()
-    grid.time += shift
 
-    FADRelease(grid, lons=[float(v) for v in D_vars['"lon"']], lats=[float(v) for v in D_vars['"lat"']],
-               deploy_times=times, individuals=N_FADs,
-               timestep=args.timestep, time=args.time, output_file=args.output, mode=args.mode)
+    times = times[0:10]
+
+    first_time = datetime.fromtimestamp(np.min(times))
+    last_time = datetime.fromtimestamp(np.max(times))
+
+    print(first_time)
+    print(last_time)
+
+    year_start = year = first_time.year
+    month_start = month = first_time.month
+    year_end = last_time.year
+    month_end = last_time.month
+
+    T = (year_end-year_start)*12 - month_start + month_end + 1
+    ufiles = []
+    vfiles = []
+    # create rest
+    for t in range(T):
+        if month < 10:
+            ufiles.append("/g/data/gb6/BRAN/BRAN_3p5/OFAM/ocean_u_%s_0%s.nc" % (year, month))
+            vfiles.append("/g/data/gb6/BRAN/BRAN_3p5/OFAM/ocean_v_%s_0%s.nc" % (year, month))
+        else:
+            ufiles.append("/g/data/gb6/BRAN/BRAN_3p5/OFAM/ocean_u_%s_%s.nc" % (year, month))
+            vfiles.append("/g/data/gb6/BRAN/BRAN_3p5/OFAM/ocean_v_%s_%s.nc" % (year, month))
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+
+    print(files)
+    variables = {'U': args.netcdf_vars[0], 'V': args.netcdf_vars[1]}
+    dimensions = {'lon': args.map_dimensions[1], 'lat': args.map_dimensions[0], 'time': args.map_dimensions[2]}
+
+    grid = Grid.from_netcdf(filenames=files, variables=variables, dimensions=dimensions, vmin=-200, vmax=200)
+
+    #shift = (datetime(1992,1,1) - datetime(1970,1,1)).total_seconds()
+    #grid.time += shift
+
+    #FADRelease(grid, lons=[float(v) for v in D_vars['"lon"']], lats=[float(v) for v in D_vars['"lat"']],
+     #          deploy_times=times, individuals=N_FADs,
+      #         timestep=args.timestep, time=args.time, output_file=args.output, mode=args.mode)
