@@ -2,11 +2,12 @@ from parcels import *
 from Behaviour import *
 import numpy as np
 from SEAPODYM_functions import *
+from SEAPODYM_PARCELS import *
 from argparse import ArgumentParser
 
 
-def TagRelease(grid, location=[0, 0], individuals=100, start=None, timestep=86400, time=30,
-               output_file='TagRelease', mode='scipy'):
+def TagRelease(grid, location=[0, 0], spread = 0, individuals=100, start=None, timestep=86400, time=30,
+               output_file='TagRelease', mode='scipy', start_age=4):
 
     ParticleClass = JITParticle if mode == 'jit' else Particle
 
@@ -33,15 +34,21 @@ def TagRelease(grid, location=[0, 0], individuals=100, start=None, timestep=8640
         def update(self):
             self.displacement = np.sqrt(np.power(self.lon-self.startpos[0], 2) + np.power(self.lat-self.startpos[1], 2))
 
-    fishset = grid.ParticleSet(size=individuals, pclass=Tuna, start=location, finish=location)
-    for p in fishset.particles:
-        p.startpos = location
+    ParticleClass = JITParticle if mode == 'jit' else ScipyParticle
+    SKJ = Create_Particle_Class(ParticleClass)
+    lats = []
+    lons = []
+    for _ in range(individuals):
+        lats.append(location[1] + np.random.uniform(spread*-1, spread))
+        lons.append(location[0] + np.random.uniform(spread*-1, spread))
+    print(lats)
+    print(lons)
+    fishset = grid.ParticleSet(size=individuals, pclass=SKJ, lon=lons, lat=lats)
 
-    update = fishset.Kernel(Update)
     age = fishset.Kernel(AgeParticle)
     diffuse = fishset.Kernel(LagrangianDiffusion)
-    advect = fishset.Kernel(Advection)
-    follow_gradient_rk4 = fishset.Kernel(GradientRK4)
+    advect = fishset.Kernel(Advection_C)
+    taxis = fishset.Kernel(GradientRK4_C)
     move = fishset.Kernel(Move)
 
     starttime = grid.time[0] if start is None else start
@@ -54,7 +61,7 @@ def TagRelease(grid, location=[0, 0], individuals=100, start=None, timestep=8640
     grid.write(output_file)
 
     print("Starting Sim")
-    fishset.execute(age + follow_gradient_rk4 + advect + diffuse + move + update,
+    fishset.execute(age + taxis + advect + diffuse + move,
                     starttime=starttime, endtime=starttime+time*timestep, dt=timestep,
                     output_file=fishset.ParticleFile(name=output_file+"_results"),
                     interval=timestep)#, density_field=density_field)
@@ -91,6 +98,11 @@ if __name__ == "__main__":
                    help='Time of tag release (seconds since 1-1-1970)')
     p.add_argument('-l', '--location', type=float, nargs=2, default=[180,0],
                    help='Release location (lon,lat)')
+    p.add_argument('-a', '--age', type=int, default=4,
+                   help='Starting age of release')
+    p.add_argument('-c', '--cluster', type=float, default = 0.1,
+                   help='+- spatial range around release location (uniformly distributed, in degrees lat/lon)')
+
     args = p.parse_args()
     filename = args.output
 
@@ -100,7 +112,16 @@ if __name__ == "__main__":
 
     grid = Create_SEAPODYM_Grid(forcingU=U, forcingV=V, forcingH=H,
              Uname=args.netcdf_vars[0], Vname=args.netcdf_vars[1], Hname=args.netcdf_vars[2],
-             dimLat=args.dimensions[0], dimLon=args.dimensions[1], dimTime=args.dimensions[2])
+             dimLat=args.dimensions[0], dimLon=args.dimensions[1], dimTime=args.dimensions[2],
+                                start_age=11)
+    print("Calculating H Gradient Fields")
+    gradients = grid.H.gradient()
+    for field in gradients:
+        grid.add_field(field)
+    print("Calculating K Gradient Fields")
+    K_gradients = grid.K.gradient()
+    for field in K_gradients:
+        grid.add_field(field)
 
-    TagRelease(grid, location=args.location, start=args.starttime, individuals=args.particles,
-               timestep=args.timestep, time=args.time, output_file=args.output, mode=args.mode)
+    TagRelease(grid, location=args.location, spread=args.cluster, start=args.starttime, individuals=args.particles,
+               start_age=args.age, timestep=args.timestep, time=args.time, output_file=args.output, mode=args.mode)

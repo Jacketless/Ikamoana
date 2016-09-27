@@ -52,7 +52,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
             grid.add_field()
         else:
             grid.add_field(Field.from_netcdf('K', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'K'}, glob(str(path.local(Kfile)))))
-            
+
 
     if dH_dxfile is None or dH_dyfile is None:
         # Offline calculation of the diffusion and basic habitat grid
@@ -151,6 +151,7 @@ def Create_Particle_Class(type=JITParticle):
             self.fish = 100000
             self.H = self.Dx = self.Dy = self.Cx = self.Cy = self.Vx = self.Vy = self.Ax = self.Ay = 0
             self.taxis_scale = 0
+            self.active = 1
 
         def setAge(self, months):
             self.age = months*30*24*60*60
