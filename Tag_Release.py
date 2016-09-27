@@ -9,31 +9,6 @@ from argparse import ArgumentParser
 def TagRelease(grid, location=[0, 0], spread = 0, individuals=100, start=None, timestep=86400, time=30,
                output_file='TagRelease', mode='scipy', start_age=4):
 
-    ParticleClass = JITParticle if mode == 'jit' else Particle
-
-    class Tuna(ParticleClass):
-        user_vars = {'monthly_age': np.float32, 'age': np.float32,
-                     'displacement': np.float32}
-
-        def __init__(self, *args, **kwargs):
-            """Custom initialisation function which calls the base
-            initialisation and adds the instance variable p"""
-            super(Tuna, self).__init__(*args, **kwargs)
-            self.monthly_age = 4
-            self.age = self.monthly_age*30*24*60*60
-            self.Vmax = V_max(self.monthly_age)
-            self.startpos = [0, 0]
-            self.displacement = 0
-
-        def age_school(self, dt):
-            self.age += dt
-            if self.age - (self.monthly_age*30*24*60*60) > (30*24*60*60):
-                self.monthly_age += 1
-                self.Vmax = V_max(self.monthly_age)
-
-        def update(self):
-            self.displacement = np.sqrt(np.power(self.lon-self.startpos[0], 2) + np.power(self.lat-self.startpos[1], 2))
-
     ParticleClass = JITParticle if mode == 'jit' else ScipyParticle
     SKJ = Create_Particle_Class(ParticleClass)
     lats = []
