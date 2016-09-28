@@ -318,6 +318,7 @@ def Field_from_DYM(filename, name=None, xlim=None, ylim=None, fromyear=None, fro
 
 
 def Create_TaggedFish_Class(type=JITParticle):
+    class TaggedFish(type):
         monthly_age = Variable("monthly_age", dtype=np.int32)
         age = Variable('age', to_write=False)
         Vmax = Variable('Vmax', to_write=False)
