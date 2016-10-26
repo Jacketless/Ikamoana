@@ -9,6 +9,7 @@ from argparse import ArgumentParser
 
 def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
              Uname='u', Vname='v', Hname='habitat', Dname='density',
+             startlons=None, startlats=None,
              dimLon='lon', dimLat='lat',dimTime='time',
              Kfile=None, dK_dxfile=None, dK_dyfile=None, dH_dxfile=None, dH_dyfile=None,
              diffusion_boost=0, diffusion_scale=1, taxis_scale=1,
@@ -89,7 +90,8 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
     #    print("Creating SEAPODYM_Density field for start conditions from %s" % startD)
     #    grid.add_field(Field.from_netcdf('SEAPODYM_Density', dimensions=dimensions, filenames=startD))
 
-    fishset = grid.ParticleSet(size=individuals, pclass=SKJ, start_field=grid.SEAPODYM_Density)
+    fishset = grid.ParticleSet(size=individuals, pclass=SKJ, start_field=grid.SEAPODYM_Density,
+                               lon=startlons, lat=startlats)
 
     for p in fishset.particles:
         p.setAge(start_age)

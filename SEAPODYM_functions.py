@@ -54,7 +54,7 @@ def Mortality_C(age, H):
 
 
 def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303, c=0.9817751085550976, P=3,
-                                    start_age=4, Vmax_slope=1, diffusion_boost=0, diffusion_scale=1):
+                                    start_age=4, Vmax_slope=1, diffusion_boost=0, diffusion_scale=1, units='m_per_s'):
     K = np.zeros(np.shape(H.data), dtype=np.float32)
     months = start_age
     age = months*30*24*60*60
@@ -64,7 +64,10 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
         if age - (months*30*24*60*60) > (30*24*60*60):
             months += 1
         print("Calculating diffusivity for fish aged %s months" % months)
-        Dmax = np.power(V_max(months, b=Vmax_slope), 2) / 4 * timestep #fixed b parameter for diffusion
+        if units == 'nm_per_mon':
+            Dmax = np.power(GetLengthFromAge(months)*30*24*3600/1852, 2) / (4 * timestep/(60*60*24*30)) #vmax = L for diffusion
+        else:
+            Dmax = np.power(GetLengthFromAge(months), 2) / 4 * timestep #fixed b parameter for diffusion
         sig_D = sigma * Dmax
         for x in range(H.lon.size):
             for y in range(H.lat.size):
@@ -76,7 +79,7 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
 def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
                          Uname='u', Vname='v', Hname='habitat', Dname='density',
                          dimLon='lon', dimLat='lat', dimTime='time', timestep=86400,
-                         scaleH=None, start_age=4, output_density=False):
+                         scaleH=None, start_age=4, output_density=False, diffusion_scale=1):
     filenames = {'U': forcingU, 'V': forcingV, 'H': forcingH}
     variables = {'U': Uname, 'V': Vname, 'H': Hname}
     dimensions = {'lon': dimLon, 'lat': dimLat, 'time': dimTime}
@@ -107,7 +110,7 @@ def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
 
     # Offline calculate the 'diffusion' grid as a function of habitat
     print("Creating Diffusion Field")
-    K = Create_SEAPODYM_Diffusion_Field(grid.H, timestep, start_age)
+    K = Create_SEAPODYM_Diffusion_Field(grid.H, timestep, start_age, diffusion_scale=diffusion_scale)
     grid.add_field(K)
 
     return grid

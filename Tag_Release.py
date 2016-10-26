@@ -16,8 +16,7 @@ def TagRelease(grid, location=[0, 0], spread = 0, individuals=100, start=None, t
     for _ in range(individuals):
         lats.append(location[1] + np.random.uniform(spread*-1, spread))
         lons.append(location[0] + np.random.uniform(spread*-1, spread))
-    print(lats)
-    print(lons)
+
     fishset = grid.ParticleSet(size=individuals, pclass=SKJ, lon=lons, lat=lats)
 
     age = fishset.Kernel(AgeIndividual)
@@ -31,6 +30,7 @@ def TagRelease(grid, location=[0, 0], spread = 0, individuals=100, start=None, t
     for p in fishset.particles:
         p.setAge(start_age)
         p.release_time = grid.time[0] + starttime
+        #p.active.to_write = True
 
     grid.write(output_file)
 
@@ -76,6 +76,9 @@ if __name__ == "__main__":
                    help='+- spatial range around release location (uniformly distributed, in degrees lat/lon)')
     p.add_argument('-s', '--start', type=float, default = 4,
                    help='age in months when fish are released')
+    p.add_argument('-ds', '--diffusion_scale', type=float, default = 4,
+                   help='scaler for diffusion')
+
 
     args = p.parse_args()
     filename = args.output
@@ -87,7 +90,7 @@ if __name__ == "__main__":
     grid = Create_SEAPODYM_Grid(forcingU=U, forcingV=V, forcingH=H,
              Uname=args.netcdf_vars[0], Vname=args.netcdf_vars[1], Hname=args.netcdf_vars[2],
              dimLat=args.dimensions[0], dimLon=args.dimensions[1], dimTime=args.dimensions[2],
-                                start_age=11)
+                                start_age=11, diffusion_scale=args.diffusion_scale)
     print("Calculating H Gradient Fields")
     gradients = grid.H.gradient()
     for field in gradients:
