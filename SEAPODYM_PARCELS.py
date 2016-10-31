@@ -9,6 +9,7 @@ from argparse import ArgumentParser
 
 def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
              Uname='u', Vname='v', Hname='habitat', Dname='density',
+             startlons=None, startlats=None,
              dimLon='lon', dimLat='lat',dimTime='time',
              Kfile=None, dK_dxfile=None, dK_dyfile=None, dH_dxfile=None, dH_dyfile=None,
              diffusion_boost=0, diffusion_scale=1, taxis_scale=1,
@@ -52,7 +53,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
             grid.add_field()
         else:
             grid.add_field(Field.from_netcdf('K', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'K'}, glob(str(path.local(Kfile)))))
-            
+
 
     if dH_dxfile is None or dH_dyfile is None:
         # Offline calculation of the diffusion and basic habitat grid
@@ -89,7 +90,8 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
     #    print("Creating SEAPODYM_Density field for start conditions from %s" % startD)
     #    grid.add_field(Field.from_netcdf('SEAPODYM_Density', dimensions=dimensions, filenames=startD))
 
-    fishset = grid.ParticleSet(size=individuals, pclass=SKJ, start_field=grid.SEAPODYM_Density)
+    fishset = grid.ParticleSet(size=individuals, pclass=SKJ, start_field=grid.SEAPODYM_Density,
+                               lon=startlons, lat=startlats)
 
     for p in fishset.particles:
         p.setAge(start_age)
@@ -151,6 +153,7 @@ def Create_Particle_Class(type=JITParticle):
             self.fish = 100000
             self.H = self.Dx = self.Dy = self.Cx = self.Cy = self.Vx = self.Vy = self.Ax = self.Ay = 0
             self.taxis_scale = 0
+            self.active = 1
 
         def setAge(self, months):
             self.age = months*30*24*60*60

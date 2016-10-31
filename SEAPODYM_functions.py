@@ -2,6 +2,7 @@ import numpy as np
 import struct
 from parcels.field import Field
 from parcels.grid import Grid
+from parcels.particle import *
 from netCDF4 import num2date
 from datetime import datetime
 
@@ -53,7 +54,7 @@ def Mortality_C(age, H):
 
 
 def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303, c=0.9817751085550976, P=3,
-                                    start_age=4, Vmax_slope=1, diffusion_boost=0, diffusion_scale=1):
+                                    start_age=4, Vmax_slope=1, diffusion_boost=0, diffusion_scale=1, units='m_per_s'):
     K = np.zeros(np.shape(H.data), dtype=np.float32)
     months = start_age
     age = months*30*24*60*60
@@ -63,7 +64,10 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
         if age - (months*30*24*60*60) > (30*24*60*60):
             months += 1
         print("Calculating diffusivity for fish aged %s months" % months)
-        Dmax = np.power(V_max(months, b=Vmax_slope), 2) / 4 * timestep #fixed b parameter for diffusion
+        if units == 'nm_per_mon':
+            Dmax = np.power(GetLengthFromAge(months)*30*24*3600/1852, 2) / (4 * timestep/(60*60*24*30)) #vmax = L for diffusion
+        else:
+            Dmax = np.power(GetLengthFromAge(months), 2) / 4 * timestep #fixed b parameter for diffusion
         sig_D = sigma * Dmax
         for x in range(H.lon.size):
             for y in range(H.lat.size):
@@ -75,7 +79,7 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
 def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
                          Uname='u', Vname='v', Hname='habitat', Dname='density',
                          dimLon='lon', dimLat='lat', dimTime='time', timestep=86400,
-                         scaleH=None, start_age=4, output_density=False):
+                         scaleH=None, start_age=4, output_density=False, diffusion_scale=1):
     filenames = {'U': forcingU, 'V': forcingV, 'H': forcingH}
     variables = {'U': Uname, 'V': Vname, 'H': Hname}
     dimensions = {'lon': dimLon, 'lat': dimLat, 'time': dimTime}
@@ -106,7 +110,7 @@ def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
 
     # Offline calculate the 'diffusion' grid as a function of habitat
     print("Creating Diffusion Field")
-    K = Create_SEAPODYM_Diffusion_Field(grid.H, timestep, start_age)
+    K = Create_SEAPODYM_Diffusion_Field(grid.H, timestep, start_age, diffusion_scale=diffusion_scale)
     grid.add_field(K)
 
     return grid
@@ -314,3 +318,39 @@ def Field_from_DYM(filename, name=None, xlim=None, ylim=None, fromyear=None, fro
     times_in_s = np.array(times_in_s, dtype=np.float32)
 
     return Field(name, data, lon=x[0,:], lat=y[:,0][::-1], time=times_in_s, time_origin=origin)
+
+
+def Create_TaggedFish_Class(type=JITParticle):
+    class TaggedFish(type):
+        monthly_age = Variable("monthly_age", dtype=np.int32)
+        age = Variable('age', to_write=False)
+        Vmax = Variable('Vmax', to_write=False)
+        Dv_max = Variable('Dv_max', to_write=False)
+        H = Variable('H', to_write=False)
+        Dx = Variable('Dx', to_write=False)
+        Dy = Variable('Dy', to_write=False)
+        Cx = Variable('Cx', to_write=False)
+        Cy = Variable('Cy', to_write=False)
+        Vx = Variable('Vx', to_write=False)
+        Vy = Variable('Vy', to_write=False)
+        Ax = Variable('Ax', to_write=False)
+        Ay = Variable('Ay', to_write=False)
+        taxis_scale = Variable('taxis_scale', to_write=False)
+        release_time = Variable('release_time', dtype=np.float32, initial=0, to_write=False)
+
+        def __init__(self, *args, **kwargs):
+            """Custom initialisation function which calls the base
+            initialisation and adds the instance variable p"""
+            super(TaggedFish, self).__init__(*args, **kwargs)
+            self.setAge(4.)
+            self.H = self.Dx = self.Dy = self.Cx = self.Cy = self.Vx = self.Vy = self.Ax = self.Ay = 0
+            self.taxis_scale = 0
+            self.active = 0
+            self.release_time = 0
+
+        def setAge(self, months):
+            self.age = months*30*24*60*60
+            self.monthly_age = int(self.age/(30*24*60*60))
+            self.Vmax = V_max(self.monthly_age)
+
+    return TaggedFish
