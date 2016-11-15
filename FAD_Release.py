@@ -140,6 +140,7 @@ if __name__ == "__main__":
     files = {'U': "/g/data/gb6/BRAN/BRAN3p5/OFAM/ocean_u_*.nc", 'V': "/g/data/gb6/BRAN/BRAN3p5/OFAM/ocean_v_*.nc"}
 
     grid = Grid.from_netcdf(filenames=files, variables=variables, dimensions=dimensions, vmin=-200, vmax=200)
+    grid.write('BRAN_test')
 
     #shift = (datetime(1992,1,1) - datetime(1970,1,1)).total_seconds()
     #grid.time += shift
