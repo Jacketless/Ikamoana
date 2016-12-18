@@ -30,15 +30,15 @@ def AgeParticle(particle, grid, time, dt):
         L = lengths[(particle.monthly_age-1)]/100  #L = GetLengthFromAge(monthly_age)
         vmax = a * math.pow(L, b)
         particle.Vmax = vmax
-        MPmax=0.3
-        MPexp=0.1008314958945224
-        MSmax=0.006109001382111822
-        MSslope=0.8158285706493162
-        Mrange=0.00001430156
-        Mnat = MPmax*math.exp(-1*MPexp*particle.age) + MSmax*math.pow(particle.age, MSslope)
-        Hexp = 1-grid.H[time, particle.lon, particle.lat]/2
-        Mvar = Mnat * math.pow((1 - Mrange), Hexp)#(1-grid.H[time, lon, lat]))#/2))
-        particle.fish *= 1-Mvar  #particle.fish *= 1-Mortality_C(particle.monthly_age, particle.H)
+        # MPmax=0.3
+        # MPexp=0.1008314958945224
+        # MSmax=0.006109001382111822
+        # MSslope=0.8158285706493162
+        # Mrange=0.00001430156
+        # Mnat = MPmax*math.exp(-1*MPexp*particle.age) + MSmax*math.pow(particle.age, MSslope)
+        # Hexp = 1-grid.H[time, particle.lon, particle.lat]/2
+        # Mvar = Mnat * math.pow((1 - Mrange), Hexp)#(1-grid.H[time, lon, lat]))#/2))
+        # particle.fish *= 1-Mvar  #particle.fish *= 1-Mortality_C(particle.monthly_age, particle.H)
 
 
 def AgeIndividual(particle, grid, time, dt):
@@ -216,6 +216,14 @@ def RandomWalkDiffusion(particle, grid, time, dt):
     particle.Cy = CorrectionY
     particle.Dx = R*np.cos(angle) * to_lon
     particle.Dy = R*np.sin(angle) * to_lat
+
+
+def UndoMove(particle):
+    #print("UndoMove triggered! Moving particle")
+    #print("from: %s | %s" % (particle.lon, particle.lat))
+    particle.lon -= particle.Dx + particle.Cx + particle.Ax + particle.Vx
+    particle.lat -= particle.Dy + particle.Cy + particle.Ay + particle.Vy
+    #print("to:   %s | %s" % (particle.lon, particle.lat))
 
 
 # Kernel to call a generic particle update function
