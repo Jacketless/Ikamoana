@@ -96,8 +96,10 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
         # Total fish is density*area
         total_fish = np.sum(grid.SEAPODYM_Density.data * area)
         print('Total no. of fish in SEAPODYM run = %s' % total_fish)
-        individuals = 10
-
+        print('Assuming schools of 10,000 fish, total number of individuals = %s' % str(round(total_fish/10000)))
+        individuals = raw_input('Please enter the number of school (leave blank for default):')
+        if individuals is '':
+            individuals = 1000
 
     fishset = grid.ParticleSet(size=individuals, pclass=SKJ, start_field=grid.SEAPODYM_Density,
                                lon=startlons, lat=startlats)
