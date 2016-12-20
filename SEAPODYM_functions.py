@@ -60,8 +60,11 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303,
     age = months*30*24*60*60
     for t in range(H.time.size):
         # Increase age in months if required, to incorporate appropriate Vmax
-        age = H.time[t] - H.time[0] + start_age*30*24*60*60
-        if age - (months*30*24*60*60) > (30*24*60*60):
+        # months in SEAPODYM are all assumed to be 30 days long
+        #age = H.time[t] - H.time[0] + start_age*30*24*60*60 # this is for 'true' ageing
+        age = (start_age+t)*30*24*60*60
+        print('age in days = %s' % (age/(24*60*60)))
+        if age - (months*30*24*60*60) >= (30*24*60*60):
             months += 1
         print("Calculating diffusivity for fish aged %s months" % months)
         if units == 'nm_per_mon':

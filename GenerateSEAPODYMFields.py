@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 if __name__ == "__main__":
     forcingU = 'SEAPODYM_Forcing_Data/SEAPODYM2003_PHYS_Prepped.nc'
     forcingV = 'SEAPODYM_Forcing_Data/SEAPODYM2003_PHYS_Prepped.nc'
-    forcingH = 'SEAPODYM_Forcing_Data/SEAPODYM2003_HABITAT_Prepped.nc'
+    forcingH = 'SEAPODYM_Forcing_Data/2002_Fields/HABITAT/2003_HABITAT.nc'
 
     filenames = {'U': forcingU, 'V': forcingV, 'H': forcingH}
     variables = {'U': 'u', 'V': 'v', 'H': 'habitat'}
@@ -22,6 +22,7 @@ if __name__ == "__main__":
     S_K = Create_SEAPODYM_Diffusion_Field(grid.H, 30*24*60*60, units='nm_per_mon', P=3)
     S_K.name = 'S_K'
     grid.add_field(S_K)
+    grid.write('SEAPODYM_Grid_Comparison')
 
     print("Loading Diffusion Field")
     bfile = Dataset('DIFFUSION_last_cohort/last_cohort_diffusion.nc', 'r')
