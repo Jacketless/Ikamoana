@@ -66,7 +66,7 @@ def add_arrow_to_line2D(
 
 
 def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimensions, cmap, drawland, limits, display,
-                     mode):
+                     start=1, mode='movie2d', output='particle_plot'):
     """Quick and simple plotting of PARCELS trajectories"""
 
     pfile = Dataset(filename, 'r')
@@ -119,10 +119,11 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
         ax.set_xlabel('Longitude')
         ax.set_ylabel('Latitude')
         ax.set_zlabel('Depth')
+        plt.show()
     elif mode == '2d':
         fig, ax = plt.subplots(1, 1)
         #subsample
-        indices = np.rint(np.linspace(0, len(lon)-1, 4000)).astype(int)
+        indices = np.rint(np.linspace(0, len(lon)-1, 100)).astype(int)
         #indices = range(len(lon[:,0]))
         if backgroundfield is not 'none':
             time=18
@@ -154,6 +155,7 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
             m.etopo()
             #m.arcgisimage(service='ESRI_Imagery_World_2D', xpixels = 2000, verbose= True)
             m.fillcontinents(color='forestgreen', lake_color='aqua')
+        plt.show()
 
     elif mode == 'movie2d':
 
@@ -161,14 +163,14 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
         ax = plt.axes(xlim=[limits[0], limits[1]], ylim=[limits[2], limits[3]])
         ax.set_xlim(limits[0], limits[1])
         ax.set_ylim(limits[2], limits[3])
-        scat = ax.scatter(lon[:, 0], lat[:, 0], s=psize, c='black')
-
+        indices = np.rint(np.linspace(0, len(lon)-1, 100)).astype(int)
+        scat = ax.scatter(lon[indices, 0], lat[indices, 0], s=psize, c='black')
         # Offline calc contours still to do
-
         def animate(i):
             ax.cla()
             #active_list = active[:, i] > 0
-            active_list = range(len(lon[:,i]))
+            active_list = range(len(lon[:,i]))#indices
+
             if drawland:
                 m.drawcoastlines()
                 m.fillcontinents(color='forestgreen', lake_color='aqua')
@@ -186,22 +188,62 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
                              zorder=-1,ylim=[limits[2], limits[3]], cmap=cmap)
             plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
             if display is not 'none':
-                ax.text((limits[0]+limits[1])/2,limits[3]-5, "Cohort age = %s months" % title[0,i])
+                day = int((i-1140)/8)
+                plt.suptitle("Day %s" % day)#"Cohort age = %s months" % title[0,i])
             return scat,
 
         if drawland:
             m = Basemap(width=12000000, height=9000000, projection='cyl',
-                        resolution='c', llcrnrlon=np.round(np.amin(lon)), llcrnrlat=np.amin(lat),
-                        urcrnrlon=np.amax(lon), urcrnrlat=np.amax(lat))
+                        resolution='f', llcrnrlon=np.round(np.amin(lon)), llcrnrlat=np.amin(lat),
+                        urcrnrlon=np.amax(lon), urcrnrlat=np.amax(lat), area_thresh = 10)
 
-        anim = animation.FuncAnimation(fig, animate, frames=np.arange(1, lon.shape[1]),
-                                       interval=100, blit=False)
+        anim = animation.FuncAnimation(fig, animate, frames=np.arange(start, lon.shape[1]),
+                                       interval=1, blit=False)
+        plt.show()
 
-    plt.show()
+    elif mode == 'to_file':
+        fig = plt.figure(1)
+        ax = plt.axes(xlim=[limits[0], limits[1]], ylim=[limits[2], limits[3]])
+        ax.set_xlim(limits[0], limits[1])
+        ax.set_ylim(limits[2], limits[3])
+        indices = np.rint(np.linspace(0, len(lon)-1, 100)).astype(int)
+        scat = ax.scatter(lon[indices, 0], lat[indices, 0], s=psize, c='black')
+        if drawland:
+            m = Basemap(width=12000000, height=9000000, projection='cyl',
+                        resolution='f', llcrnrlon=np.round(np.amin(lon)), llcrnrlat=np.amin(lat),
+                        urcrnrlon=np.amax(lon), urcrnrlat=np.amax(lat), area_thresh = 10)
+
+        for i in np.arange(start, lon.shape[1]):
+            ax.cla()
+            #active_list = active[:, i] > 0
+            active_list = range(len(lon[:,i]))#indices
+
+            if drawland:
+                m.drawcoastlines()
+                m.fillcontinents(color='forestgreen', lake_color='aqua')
+            if recordedvar is not 'none':
+                scat = ax.scatter(lon[active_list, i], lat[active_list, i], s=psize, c=record[active_list, i],
+                                  cmap=rcmap, vmin=0, vmax=1)
+            else:
+                scat = ax.scatter(lon[active_list, i], lat[active_list, i], s=psize, c='blue', edgecolors='black')
+            ax.set_xlim([limits[0], limits[1]])
+            ax.set_ylim([limits[2], limits[3]])
+            if backgroundfield is not 'none':
+                field_time = np.argmax(bT > time[0, i]) - 1
+                plt.contourf(bY[:], bX[:], bVar[field_time, :, :], vmin=0, vmax=np.max(bVar[field_time, :, :]),
+                             levels=np.linspace(0, np.max(bVar[field_time, :, :]), 100), xlim=[limits[0], limits[1]],
+                             zorder=-1,ylim=[limits[2], limits[3]], cmap=cmap)
+            plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
+            if display is not 'none':
+                day = int((i-1140)/8)
+                #plt.suptitle("Day %s" % day)
+                plt.suptitle("Cohort age = %s months" % title[0,i])
+            plt.savefig('Plots/%s%s.png' % (output, i))
+
 
 if __name__ == "__main__":
     p = ArgumentParser(description="""Quick and simple plotting of PARCELS trajectories""")
-    p.add_argument('mode', choices=('2d', '3d', 'movie2d'), nargs='?', default='2d',
+    p.add_argument('mode', choices=('2d', '3d', 'movie2d', 'to_file'), nargs='?', default='2d',
                    help='Type of display')
     p.add_argument('-p', '--particlefile', type=str, default='MyParticle.nc',
                    help='Name of particle file')
@@ -225,6 +267,10 @@ if __name__ == "__main__":
                    help='Name of background field dimensions in order of lon, lat, and time')
     p.add_argument('-t', '--title', type=str, default='none',
                    help='Variable to pull from particle file and display during movie')
+    p.add_argument('-st', '--start_time', type=int, default=1,
+                   help='Timestep from which to begin animation')
+    p.add_argument('-o', '--output', type=str, default='particle_plot',
+                   help='Filename stem when writing to file')
 
     args = p.parse_args()
 
@@ -240,4 +286,4 @@ if __name__ == "__main__":
         psize = int(args.size)
 
     particleplotting(args.particlefile, psize, args.recordedvar, args.colourmap_recorded, args.background, args.dimensions, args.colourmap, args.landdraw,
-                     args.limits, args.title, mode=args.mode)
+                     args.limits, args.title,start=args.start_time, mode=args.mode, output=args.output)

@@ -121,10 +121,23 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
     for m in month_steps:
         print("Starting Month %s, day %s, time %s" %
               (str(np.where(month_steps == m)[0][0]), (m - grid.time[0])/(24*60*60), m - grid.time[0]))
-        fishset.execute(age + advect + taxis + diffuse + move, starttime=m, endtime=m+30*24*60*60-1, dt=timestep,
+        month_files = {'U': str(forcingU + '_month' + m + '.nc'), 'V': str(forcingV + '_month' + m + '.nc'),
+                      'H': str(forcingH + '_month' + m + '.nc')}
+        grid = Grid.from_netcdf(filenames=month_files, variables=variables, dimensions=dimensions, vmax=200)
+        print("Calculating H Gradient Fields")
+        gradients = grid.H.gradient()
+        for field in gradients:
+            grid.add_field(field)
+        K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60, start_age=start_age+m-1,
+                                            diffusion_scale=diffusion_scale, diffusion_boost=diffusion_boost)
+        grid.add_field(K)
+        K_gradients = grid.K.gradient()
+        for field in K_gradients:
+            grid.add_field(field)
+        
+        fishset.execute(age + advect + taxis + diffuse + move, endtime=30*24*60*60-1, dt=timestep,
                         output_file=fishset.ParticleFile(name=output_file+"_month"+str(np.where(month_steps == m)[0][0])),
                         interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
-        print("Finished at time %s" % (m+30*24*60*60-1-grid.time[0]))
         grid.Density.data[np.where(month_steps == m)[0][0],:,:] = np.transpose(fishset.density(relative=True))
 
     if write_grid:

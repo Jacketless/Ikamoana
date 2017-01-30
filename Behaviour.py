@@ -5,6 +5,8 @@ import math
 
 def SampleH(particle, grid, time, dt):
     particle.H = grid.H[time, particle.lon, particle.lat]
+    #particle.dHdx = grid.dH_dx[time, particle.lon, particle.lat]
+    #particle.dHdy = grid.dH_dy[time, particle.lon, particle.lat]
 
 
 def CheckRelease(particle, grid, time, dt):
@@ -17,16 +19,14 @@ def AgeParticle(particle, grid, time, dt):
     particle.age += dt
     if (particle.age - (particle.monthly_age*30*24*60*60)) > (30*24*60*60):
         particle.monthly_age += 1
-        a=0.7343607395421234
-        b=0.5006692114850767
-        lengths = [3.00, 4.51, 6.02, 11.65, 16.91, 21.83, 26.43, 30.72, 34.73, 38.49,
-                   41.99, 45.27, 48.33, 51.19, 53.86, 56.36, 58.70, 60.88, 62.92, 64.83,
-                   66.61, 68.27, 69.83, 71.28, 72.64, 73.91, 75.10, 76.21, 77.25, 78.22,
-                   79.12, 79.97, 80.76, 81.50, 82.19, 82.83, 83.44, 84.00, 84.53, 85.02,
-                   85.48, 85.91, 86.31, 86.69, 87.04, 87.37, 87.68, 87.96, 89.42, 89.42, 89.42, 89.42,
-                   89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42,
-                   89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42,
-                   89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42, 89.42]
+        a=2.225841100458143# 0.7343607395421234 old parameters
+        b=0.8348850216641774# 0.5006692114850767 old parameters
+        lengths = [3.00, 4.51, 6.02, 11.65, 16.91, 21.83, 26.43, 30.72, 34.73, 38.49, 41.99, 45.27,
+                   48.33, 51.19, 53.86, 56.36, 58.70, 60.88, 62.92, 64.83, 66.61, 68.27, 69.83, 71.28,
+                   72.64, 73.91, 75.10, 76.21, 77.25, 78.22, 79.12, 79.97, 80.76, 81.50, 82.19, 82.83,
+                   83.44, 84.00, 84.53, 85.02, 85.48, 85.91, 86.31, 86.69, 87.04, 87.37, 87.68, 87.96,
+                   88.23, 88.48, 88.71, 88.93, 89.14, 89.33, 89.51, 89.67, 89.83, 89.97, 90.11, 90.24,
+                   90.36, 90.47, 90.57, 90.67, 91.16]
         L = lengths[(particle.monthly_age-1)]/100  #L = GetLengthFromAge(monthly_age)
         vmax = a * math.pow(L, b)
         particle.Vmax = vmax
@@ -46,9 +46,9 @@ def AgeIndividual(particle, grid, time, dt):
     particle.age += dt
     if (particle.age - (particle.monthly_age*30*24*60*60)) > (30*24*60*60):
         particle.monthly_age += 1
-        a=0.7343607395421234
-        b=0.5006692114850767
-        lengths = [3.00, 4.51, 6.02, 11.65, 16.91, 21.83, 26.43, 30.72, 34.73, 38.49,
+        a=2.225841100458143# 0.7343607395421234 old parameters
+        b=0.8348850216641774# 0.5006692114850767 old parameters
+        Alengths = [3.00, 4.51, 6.02, 11.65, 16.91, 21.83, 26.43, 30.72, 34.73, 38.49,
                    41.99, 45.27, 48.33, 51.19, 53.86, 56.36, 58.70, 60.88, 62.92, 64.83,
                    66.61, 68.27, 69.83, 71.28, 72.64, 73.91, 75.10, 76.21, 77.25, 78.22,
                    79.12, 79.97, 80.76, 81.50, 82.19, 82.83, 83.44, 84.00, 84.53, 85.02,
@@ -138,8 +138,8 @@ def GradientRK4_C(particle, grid, time, dt):
         # u4, v4 = (grid.dH_dx[time + dt, lon3, lat3], grid.dH_dy[time + dt, lon3, lat3])
         # Vx = (u1 + 2*u2 + 2*u3 + u4) / 6.
         # Vy = (v1 + 2*v2 + 2*v3 + v4) / 6.
-        particle.Vx = grid.dH_dx[time, particle.lon, particle.lat] * particle.Vmax * f_lon * (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * particle.taxis_scale
-        particle.Vy = grid.dH_dy[time, particle.lon, particle.lat] * particle.Vmax * f_lat * (1000*1.852*60) * particle.taxis_scale
+        particle.Vx = grid.dH_dx[time, particle.lon, particle.lat] * particle.Vmax * (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * particle.taxis_scale * f_lon
+        particle.Vy = grid.dH_dy[time, particle.lon, particle.lat] * particle.Vmax * (1000*1.852*60) * particle.taxis_scale * f_lat
         #particle.Vx = Vx #* particle.Vmax #* (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * f_lon
         #particle.Vy = Vy #* particle.Vmax * (1000*1.852*60) * f_lat
 
@@ -183,6 +183,8 @@ def Advection(particle, grid, time, dt):
 def Advection_C(particle, grid, time, dt):
     #print("Advection")
     if particle.active == 1:
+        #to_lat = 1 / 1000. / 1.852 / 60.
+        #to_lon = to_lat / math.cos(particle.lat*math.pi/180)
         u1 = grid.U[time, particle.lon, particle.lat]
         v1 = grid.V[time, particle.lon, particle.lat]
         lon1, lat1 = (particle.lon + u1*.5*dt, particle.lat + v1*.5*dt)
@@ -196,8 +198,8 @@ def Advection_C(particle, grid, time, dt):
         u4, v4 = (grid.U[time + dt, lon3, lat3], grid.V[time + dt, lon3, lat3])
         Ax = (u1 + 2*u2 + 2*u3 + u4) / 6.
         Ay = (v1 + 2*v2 + 2*v3 + v4) / 6.
-        particle.Ax = Ax * dt
-        particle.Ay = Ay * dt
+        particle.Ax = Ax * dt# / to_lon #Convert back to m/s so we save to particle file in a usual format
+        particle.Ay = Ay * dt# / to_lat
 
 
 def RandomWalkDiffusion(particle, grid, time, dt):
@@ -219,11 +221,27 @@ def RandomWalkDiffusion(particle, grid, time, dt):
 
 
 def UndoMove(particle):
-    #print("UndoMove triggered! Moving particle")
+    print("UndoMove triggered! Moving particle")
     #print("from: %s | %s" % (particle.lon, particle.lat))
-    particle.lon -= particle.Dx + particle.Cx + particle.Ax + particle.Vx
-    particle.lat -= particle.Dy + particle.Cy + particle.Ay + particle.Vy
+    particle.lon -= particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
+    particle.lat -= particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
+    particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
+    #particle.lon = 200
+    #particle.lat = 0
     #print("to:   %s | %s" % (particle.lon, particle.lat))
+
+
+def MoveOffLand(particle, grid, time, dt):
+    onland_lon = grid.ClosestLon[0, particle.lon, particle.lat]
+    if onland_lon > 0:
+        #print("particle on land at %s|%s" % (particle.lon, particle.lat))
+        #newlat = grid.ClosestLat[0, particle.lon, particle.lat]
+        #particle.lon = onland_lon
+        #particle.lat = newlat
+        particle.lon -= particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
+        particle.lat -= particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
+        particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
+        #print("moved to %s|%s" % (particle.lon, particle.lat))
 
 
 # Kernel to call a generic particle update function
@@ -232,22 +250,25 @@ def Update(particle, grid, time, dt):
 
 
 def Move(particle, grid, time, dt):
-    # print("Ax = %s, Vs = %s, Dx = %s, Cx = %s" % (particle.Ax, particle.Vx, particle.Dx, particle.Cx))
-        # newlon = particle.lon + particle.Ax + particle.Dx + particle.Cx + particle.Vx
-        # newlat = particle.lat + particle.Ay + particle.Dy + particle.Cy + particle.Vy
-        # inside_bounds = False
-        # while inside_bounds is False:
-        #      try:
-        #          grid.U[time, newlon, newlat]
-        #      except (IndexError, ValueError):
-        #          print("Redrawing Diffusion p at %s - %s" % (newlon, newlat))
-        #          print("inside_bounds = %s" % inside_bounds)
-        #          LagrangianDiffusion(particle, grid, time, dt)
-        #          newlon = particle.lon + particle.Ax + particle.Dx + particle.Cx + particle.Vx
-        #          newlat = particle.lat + particle.Ay + particle.Dy + particle.Cy + particle.Vy
-        #      else:
-        #          inside_bounds = True
-    #print("Moving Particle")
     if particle.active == 1:
-        particle.lon += particle.Ax + particle.Dx + particle.Cx + particle.Vx
-        particle.lat += particle.Ay + particle.Dy + particle.Cy + particle.Vy
+        #to_lat = 1 / 1000. / 1.852 / 60.
+        #to_lon = to_lat / math.cos(particle.lat*math.pi/180)
+        #print("Ax=%s Dx=%s Cx=%s Vx=%s dHdx=%s at time %s" % (particle.Ax , particle.Dx, particle.Cx, particle.Vx, particle.dHdx, time))
+        #print("Ay=%s Dy=%s Cy=%s Vy=%s dHdy=%s at time %s" % (particle.Ay , particle.Dy, particle.Cy, particle.Vy, particle.dHdy, time))
+        particle.lon += particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
+        particle.lat += particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
+
+
+# Some simple movement kernels for testing purposes:
+def MoveEast(particle, grid, time, dt):
+    if particle.active == 1:
+        to_lat = 1 / 1000. / 1.852 / 60.
+        to_lon = to_lat / math.cos(particle.lat*math.pi/180)
+        particle.lon += particle.Vmax * dt * to_lon
+
+
+def MoveWest(particle, grid, time, dt):
+    if particle.active == 1:
+        to_lat = 1 / 1000. / 1.852 / 60.
+        to_lon = to_lat / math.cos(particle.lat*math.pi/180)
+        particle.lon -= particle.Vmax * dt * to_lon
