@@ -4,22 +4,23 @@ from netCDF4 import Dataset
 import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
-    forcingU = 'SEAPODYM_Forcing_Data/SEAPODYM2003_PHYS_Prepped.nc'
-    forcingV = 'SEAPODYM_Forcing_Data/SEAPODYM2003_PHYS_Prepped.nc'
-    forcingH = 'SEAPODYM_Forcing_Data/2002_Fields/HABITAT/2003_HABITAT.nc'
+    forcingU = 'SEAPODYM_Forcing_Data/PHYSICAL/2003Cohort_PHYS_month1.nc'
+    forcingV = 'SEAPODYM_Forcing_Data/PHYSICAL/2003Cohort_PHYS_month1.nc'
+    forcingH = 'SEAPODYM_Forcing_Data/HABITAT/2003Cohort_HABITAT_month59.nc'
 
     filenames = {'U': forcingU, 'V': forcingV, 'H': forcingH}
     variables = {'U': 'u', 'V': 'v', 'H': 'habitat'}
     dimensions = {'lon': 'lon', 'lat': 'lat', 'time': 'time'}
 
     print("Creating Grid")
-    grid = Grid.from_netcdf(filenames=filenames, variables=variables, dimensions=dimensions, vmax=200)
+    grid = Grid.from_netcdf(filenames=filenames, variables=variables, dimensions=dimensions,
+                            vmax=200)
     #print("Creating Diffusion Field")
     #K = Create_SEAPODYM_Diffusion_Field(grid.H, 30*24*60*60)
     #grid.add_field(K)
 
     print("Creating Diffusion Field with SEAPODYM units")
-    S_K = Create_SEAPODYM_Diffusion_Field(grid.H, 30*24*60*60, units='nm_per_mon', P=3)
+    S_K = Create_SEAPODYM_Diffusion_Field(grid.H, 30*24*60*60, units='nm2_per_mon', P=3, start_age=62)
     S_K.name = 'S_K'
     grid.add_field(S_K)
     grid.write('SEAPODYM_Grid_Comparison')
