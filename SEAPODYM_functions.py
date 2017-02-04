@@ -54,76 +54,38 @@ def Mortality_C(age, H):
     return Mvar
 
 
+def getPopFromDensityField(grid, density_field='Start'):
+    area = np.zeros(np.shape(grid.U.data[0, :, :]), dtype=np.float32)
+    U = grid.U
+    V = grid.V
+    dy = (V.lon[1] - V.lon[0])/V.units.to_target(1, V.lon[0], V.lat[0])
+    for y in range(len(U.lat)):
+        dx = (U.lon[1] - U.lon[0])/U.units.to_target(1, U.lon[0], U.lat[y])
+        area[y, :] = dy * dx
+    # Convert to km^2
+    area /= 1000*1000
+    # Total fish is density*area
+    print(getattr(grid, density_field).data)
+    total_fish = np.sum(getattr(grid, density_field).data * area)
+    return total_fish
+
+
 def Create_Landmask(grid):
-    def isocean(p):
-        return 1 if p < 1e5 else 0
+    def isocean(p, lim=1e5):
+        return 1 if p < lim else 0
 
-    def neighbourswater(arr, i, j, nx):
-        # Return True if at least one of the four neighbouring points is ocean
-        nocean = (isocean(arr[j+1, i]) + isocean(arr[j, (i+1) % nx])
-                  + isocean(arr[j-1, i]) + isocean(arr[j, (i-1) % nx]))
-        return 1 if nocean < 4 else 0
-
-    def geodist(lon1, lat1, lon2, lat2):
-        # Simple function to calculate Euclidean distance between points.
-        # Since we don't care about exact value of distance, so issues with (co)sines etc
-        x = ((lon2 - lon1))
-        x[x > 180] = 360 - x[x > 180]
-        y = lat2 - lat1
-        return np.sqrt(x*x + y*y)
-
-    def createcoastarr(arr, nx, ny):
-        # Function that masks all land points that have at least one neighbour ocean
-        mask = np.zeros((ny, nx))
-        for i in range(nx):
-            for j in range(1, ny-1):
-                if isocean(arr[j, i]) and neighbourswater(arr, i, j, nx):
-                    mask[j, i] = 1
-        return mask
-
-    def find_boundarypoints(grid, nx, ny, npoints):
-        # Function that finds boundary points
-        landgrid = grid.H.data[0, 0:ny, 0:nx]
-
-        # Do for nrange iterations (i.e. nrange points out to the ocean)
-        for k in range(npoints):
-            print "Calculating boundary points "+str(k+1)+" grid cells from coast"
-
-            # Call function that masks all land points with at least one ocean neighbour
-            arr = createcoastarr(landgrid, nx, ny)
-
-            # add that mask for next iteration (note needs to be larger than isocean(p) value
-            landgrid = landgrid + arr*2e5
-
-        #find all points in arr that are not zero
-        bpts = np.where(arr)
-
-        #return the longitudes and latitudes of these points
-        return grid.H.lon[bpts[1]], grid.H.lat[bpts[0]]
-
-    npoints = 2
     nx = grid.H.lon.size
     ny = grid.H.lat.size
-    blons, blats = find_boundarypoints(grid, nx, ny, npoints)
-    closest_lon = -1. * np.ones((1, 1, ny, nx))
-    closest_lat = -99. * np.ones((1, 1, ny, nx))
-    print "Calculating closest boundary point for each land point"
+    mask = np.zeros([nx, ny, 1], dtype=np.int8)
     pbar = ProgressBar()
     for i in pbar(range(nx)):
         for j in range(1, ny-1):
             if not isocean(grid.H.data[0, j, i]):  # For each land point
-                # Calculate distance between land point and all 'boundary points'
-                dist = geodist(grid.H.lon[i], grid.H.lat[j], blons, blats)
+                mask[i,j] = 1
 
-                # Find the index of the boundary point with minimum distance
-                ind = np.argmin(dist)
-
-                # set that as lon,lat for land point
-                closest_lon[0, 0, j, i] = blons[ind]
-                closest_lat[0, 0, j, i] = blats[ind]
-    ClosestLon = Field('ClosestLon', closest_lon, grid.H.lon, grid.H.lat)
-    ClosestLat = Field('ClosestLat', closest_lat, grid.H.lon, grid.H.lat)
-    return ClosestLon, ClosestLat
+    Mask = Field('LandMask', mask, grid.H.lon, grid.H.lat, transpose=True)
+    Mask.interp_method = 'nearest'
+    return Mask#ClosestLon, ClosestLat
 
 
 def Create_SEAPODYM_Diffusion_Field(H, timestep=30*24*60*60, sigma=0.1769952864978924, c=0.662573993401526, P=3,
@@ -153,7 +115,7 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=30*24*60*60, sigma=0.17699528649
             for y in range(H.lat.size):
                 K[t, y, x] = sig_scale * sig_D * (1 - c_scale * c * np.power(H.data[t, y, x], P)) * diffusion_scale + diffusion_boost
 
-    return Field('K', K, H.lon, H.lat, time=H.time, interp_method='nearest')
+    return Field('K', K, H.lon, H.lat, time=H.time, interp_method='nearest', allow_time_extrapolation=True)
 
 
 def Create_SEAPODYM_Grid(forcing_files, startD=None, startD_dims=None,
@@ -170,27 +132,23 @@ def Create_SEAPODYM_Grid(forcing_files, startD=None, startD_dims=None,
     for f in forcing_files.values():
         print(f)
     grid = Grid.from_netcdf(filenames=forcing_files, variables=forcing_vars, dimensions=forcing_dims,
-                            vmin=-200, vmax=1e34, interp_method='nearest')
-
-    masks = Create_Landmask(grid)
-    grid.add_field(masks[0])
-    grid.add_field(masks[1])
-
-    grid.ClosestLon.interp_method = 'nearest'
-    grid.ClosestLat.interp_method = 'nearest'
-    grid.U.data[grid.U.data > 1e5] = 0
-    grid.V.data[grid.V.data > 1e5] = 0
-    grid.H.data[grid.H.data > 1e5] = 0
+                            vmin=-200, vmax=1e34, interp_method='nearest', allow_time_extrapolation=True)
 
     if startD is not None:
         grid.add_field(Field.from_netcdf('Start', dimensions=startD_dims,
-                                         filenames=path.local(startD), vmax=1000, interp_method='nearest'))
+                                         filenames=path.local(startD), vmax=1000,
+                                         interp_method='nearest', allow_time_extrapolation=True))
 
     if output_density:
         # Add a density field that will hold particle densities
         grid.add_field(Field('Density', np.full([grid.U.lon.size, grid.U.lat.size, grid.U.time.size],-1, dtype=np.float64),
                        grid.U.lon, grid.U.lat, depth=grid.U.depth, time=grid.U.time, transpose=True))
 
+    LandMask = Create_Landmask(grid)
+    grid.add_field(LandMask)
+    grid.U.data[grid.U.data > 1e5] = 0
+    grid.V.data[grid.V.data > 1e5] = 0
+    grid.H.data[grid.H.data > 1e5] = 0
     # Scale the H field between zero and one if required
     if scaleH is not None:
         grid.H.data /= np.max(grid.H.data)
@@ -223,7 +181,13 @@ def Create_SEAPODYM_Grid(forcing_files, startD=None, startD_dims=None,
     for field in K_gradients:
         grid.add_field(field)
     grid.K.interp_method = grid.dK_dx.interp_method = grid.dK_dy.interp_method = grid.H.interp_method = \
-                           grid.dH_dx.interp_method = grid.dH_dx.interp_method = grid.U.interp_method = grid.V.interp_method = 'nearest'
+                           grid.dH_dx.interp_method = grid.dH_dy.interp_method = grid.U.interp_method = grid.V.interp_method = 'nearest'
+
+    #grid.K.allow_time_extrapolation = grid.dK_dx.allow_time_extrapolation = grid.dK_dy.allow_time_extrapolation = \
+    #                                  grid.H.allow_time_extrapolation = grid.dH_dx.allow_time_extrapolation = \
+    #                                  grid.dH_dy.allow_time_extrapolation = grid.U.allow_time_extrapolation = \
+    #                                  grid.V.allow_time_extrapolation = True
+
     return grid
 
 

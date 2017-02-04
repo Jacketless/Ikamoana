@@ -222,26 +222,51 @@ def RandomWalkDiffusion(particle, grid, time, dt):
 
 def UndoMove(particle):
     print("UndoMove triggered! Moving particle")
-    #print("from: %s | %s" % (particle.lon, particle.lat))
+    print("from: %s | %s" % (particle.lon, particle.lat))
     particle.lon -= particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
     particle.lat -= particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
     particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
     #particle.lon = 200
     #particle.lat = 0
-    #print("to:   %s | %s" % (particle.lon, particle.lat))
+    print("to:   %s | %s" % (particle.lon, particle.lat))
+
+
+##def RedoMove(particle):
+
 
 
 def MoveOffLand(particle, grid, time, dt):
-    onland_lon = grid.ClosestLon[0, particle.lon, particle.lat]
-    if onland_lon > 0:
-        #print("particle on land at %s|%s" % (particle.lon, particle.lat))
-        #newlat = grid.ClosestLat[0, particle.lon, particle.lat]
-        #particle.lon = onland_lon
-        #particle.lat = newlat
-        particle.lon -= particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
-        particle.lat -= particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
-        particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
-        #print("moved to %s|%s" % (particle.lon, particle.lat))
+    onland = grid.LandMask[0, particle.lon, particle.lat]
+    if onland > 0:
+        oldlon = particle.lon - particle.Ax - particle.Dx - particle.Cx - particle.Vx
+        oldlat = particle.lat - particle.Ay - particle.Dy - particle.Cy - particle.Vy
+        lat_convert = 1 / 1000. / 1.852 / 60.
+        lon_convert = to_lat / math.cos(oldlat*math.pi/180)
+        Kfield_new = grid.K[time, oldlon, oldlat]
+        r_var_new = 1/3.
+        Dx_component = math.sqrt(2 * Kfield_new * dt / r_var_new) * lon_convert
+        Dy_component = math.sqrt(2 * Kfield_new * dt / r_var_new) * lat_convert
+        count = 0
+        while onland > 0:
+            #return ErrorCode.ErrorOutOfBounds
+            #print("particle on land at %s|%s" % (particle.lon, particle.lat))
+            particle.lon -= particle.Dx
+            particle.lat -= particle.Dy
+            Rx_new = random.uniform(-1., 1.)
+            Ry_new = random.uniform(-1., 1.)
+            particle.Dx = Dx_component * Rx_new
+            particle.Dy = Dy_component * Ry_new
+            particle.lon += particle.Dx
+            particle.lat += particle.Dy
+            onland = grid.LandMask[0, particle.lon, particle.lat]
+            #print("attempting move to %s|%s" % (particle.lon, particle.lat))
+            #print("onland now = %s" % onland)
+            count += 1
+            if count > 50:
+                particle.lon -= particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
+                particle.lat -= particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
+                particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
+                onland = 0
 
 
 # Kernel to call a generic particle update function
