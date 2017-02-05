@@ -9,64 +9,39 @@ import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 
 
-def add_arrow_to_line2D(
-    axes, line, arrow_locs=[0.2, 0.4, 0.6, 0.8],
-    arrowstyle='-|>', arrowsize=1, transform=None):
-    """
-    Add arrows to a matplotlib.lines.Line2D at selected locations.
-
-    Parameters:
-    -----------
-    axes:
-    line: list of 1 Line2D obbject as returned by plot command
-    arrow_locs: list of locations where to insert arrows, % of total length
-    arrowstyle: style of the arrow
-    arrowsize: size of the arrow
-    transform: a matplotlib transform instance, default to data coordinates
-
-    Returns:
-    --------
-    arrows: list of arrows
-    """
-    if (not(isinstance(line, list)) or not(isinstance(line[0],
-                                           mlines.Line2D))):
-        raise ValueError("expected a matplotlib.lines.Line2D object")
-    x, y = line[0].get_xdata(), line[0].get_ydata()
-
-    arrow_kw = dict(arrowstyle=arrowstyle, mutation_scale=10 * arrowsize)
-
-    color = line[0].get_color()
-    use_multicolor_lines = isinstance(color, np.ndarray)
-    if use_multicolor_lines:
-        raise NotImplementedError("multicolor lines not supported")
+def getMFRegion(lon, lat):
+    region = -1
+    if lon > 210: # Longitudinally outside WCPO assessment area
+        region = 6
     else:
-        arrow_kw['color'] = color
+        if lat > 50: # Latitudinally outside assessment area
+            region = 6
+        elif lat < -20:
+            region = 6
+        else:
+            if lat > 20:
+                region = 1
+            else: # regions 2 to 5
+                if lon < 140:
+                    region = 4
+                elif lon > 170:
+                    region = 3
+                else: # regions 2 and 5 (the tricky one)
+                    if lat > 0:
+                        region = 2
+                    elif lon > 160:
+                        region = 2
+                    else:
+                        if lon > 155 and lat > -5:
+                            region = 2
+                        else:
+                            region = 5
 
-    linewidth = line[0].get_linewidth()
-    if isinstance(linewidth, np.ndarray):
-        raise NotImplementedError("multiwidth lines not supported")
-    else:
-        arrow_kw['linewidth'] = linewidth
-
-    if transform is None:
-        transform = axes.transData
-
-    arrows = []
-    for loc in arrow_locs:
-        s = np.cumsum(np.sqrt(np.diff(x) ** 2 + np.diff(y) ** 2))
-        n = np.searchsorted(s, s[-1] * loc)
-        arrow_tail = (x[n], y[n])
-        arrow_head = (np.mean(x[n:n + 2]), np.mean(y[n:n + 2]))
-        p = mpatches.FancyArrowPatch(
-            arrow_tail, arrow_head, transform=transform,
-            **arrow_kw)
-        axes.add_patch(p)
-        arrows.append(p)
-    return arrows
+    return region
 
 
 def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimensions, cmap, drawland, limits, display,
-                     start=1, mode='movie2d', output='particle_plot'):
+                     start=1, mode='movie2d', plot_mfregion=False, mfregion_start=1, mf_focus=0, output='particle_plot'):
     """Quick and simple plotting of PARCELS trajectories"""
 
     pfile = Dataset(filename, 'r')
@@ -79,7 +54,16 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
     if display is not 'none':
         title = pfile.variables[display]
 
-    print(limits)
+    if plot_mfregion:
+        mf_cols = []
+        colmap = {1: 'red', 2: 'blue', 3: 'orange', 4: 'green', 5: 'purple', 6: 'grey'}
+        if mf_focus == 0:
+            for p in range(lon.shape[0]):
+                mf_cols.append(colmap[getMFRegion(lon[p,mfregion_start], lat[p,mfregion_start])])
+        else:
+            for p in range(lon.shape[0]):
+                r = getMFRegion(lon[p,mfregion_start], lat[p,mfregion_start])
+                mf_cols.append(colmap[r] if r is mf_focus else 'lightgrey')
 
     if limits is -1:
         limits = [np.min(lon), np.max(lon), np.min(lat), np.max(lat)]
@@ -177,6 +161,9 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
             if recordedvar is not 'none':
                 scat = ax.scatter(lon[active_list, i], lat[active_list, i], s=psize, c=record[active_list, i],
                                   cmap=rcmap, vmin=0, vmax=1)
+            elif plot_mfregion:
+                scat = ax.scatter(lon[active_list, i], lat[active_list, i], s=psize, color=mf_cols,
+                                  cmap='summer', vmin=0, vmax=1)
             else:
                 scat = ax.scatter(lon[active_list, i], lat[active_list, i], s=psize, c='blue', edgecolors='black')
             ax.set_xlim([limits[0], limits[1]])
@@ -188,13 +175,13 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
                              zorder=-1,ylim=[limits[2], limits[3]], cmap=cmap)
             plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
             if display is not 'none':
-                day = int((i-1140)/8)
-                plt.suptitle("Day %s" % day)#"Cohort age = %s months" % title[0,i])
+                plt.suptitle("Cohort age %s months" % display)#"Cohort age = %s months" % title[0,i])
+                plt.title("Region %s" % mf_focus)
             return scat,
 
         if drawland:
             m = Basemap(width=12000000, height=9000000, projection='cyl',
-                        resolution='f', llcrnrlon=np.round(np.amin(lon)), llcrnrlat=np.amin(lat),
+                        resolution='c', llcrnrlon=np.round(np.amin(lon)), llcrnrlat=np.amin(lat),
                         urcrnrlon=np.amax(lon), urcrnrlat=np.amax(lat), area_thresh = 10)
 
         anim = animation.FuncAnimation(fig, animate, frames=np.arange(start, lon.shape[1]),
@@ -202,7 +189,7 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
         plt.show()
 
     elif mode == 'to_file':
-        fig = plt.figure(1)
+        fig = plt.figure(1, figsize=(16, 8), dpi=100)
         ax = plt.axes(xlim=[limits[0], limits[1]], ylim=[limits[2], limits[3]])
         ax.set_xlim(limits[0], limits[1])
         ax.set_ylim(limits[2], limits[3])
@@ -210,8 +197,8 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
         scat = ax.scatter(lon[indices, 0], lat[indices, 0], s=psize, c='black')
         if drawland:
             m = Basemap(width=12000000, height=9000000, projection='cyl',
-                        resolution='f', llcrnrlon=np.round(np.amin(lon)), llcrnrlat=np.amin(lat),
-                        urcrnrlon=np.amax(lon), urcrnrlat=np.amax(lat), area_thresh = 10)
+                        resolution='c', llcrnrlon=np.round(np.amin(lon)), llcrnrlat=np.amin(lat),
+                        urcrnrlon=np.amax(lon),  urcrnrlat=np.amax(lat), area_thresh = 10)
 
         for i in np.arange(start, lon.shape[1]):
             ax.cla()
@@ -224,6 +211,9 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
             if recordedvar is not 'none':
                 scat = ax.scatter(lon[active_list, i], lat[active_list, i], s=psize, c=record[active_list, i],
                                   cmap=rcmap, vmin=0, vmax=1)
+            elif plot_mfregion:
+                scat = ax.scatter(lon[active_list, i], lat[active_list, i], s=psize, color=mf_cols,
+                                  cmap='summer', vmin=0, vmax=1)
             else:
                 scat = ax.scatter(lon[active_list, i], lat[active_list, i], s=psize, c='blue', edgecolors='black')
             ax.set_xlim([limits[0], limits[1]])
@@ -235,9 +225,7 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
                              zorder=-1,ylim=[limits[2], limits[3]], cmap=cmap)
             plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
             if display is not 'none':
-                day = int((i-1140)/8)
-                #plt.suptitle("Day %s" % day)
-                plt.suptitle("Cohort age = %s months" % title[0,i])
+                plt.suptitle("Region %s\nCohort age %s months" % (mf_focus if mf_focus != 0 else 'All', title[0,i]))
             plt.savefig('Plots/%s%s.png' % (output, i))
 
 
@@ -271,11 +259,23 @@ if __name__ == "__main__":
                    help='Timestep from which to begin animation')
     p.add_argument('-o', '--output', type=str, default='particle_plot',
                    help='Filename stem when writing to file')
+    p.add_argument('-mf', '--mf_colours', type=str, default='False',
+                   help='Boolean flag for colouring particles by SKJ assessment region')
+    p.add_argument('-mff', '--mf_focus', type=int, default=0,
+                   help='which single region to be coloured, defaults to zero which is all regions')
+    p.add_argument('-mfs', '--mf_start', type=int, default=0,
+                   help='Timestep at which to define mf region classification, defaults to the first')
 
     args = p.parse_args()
 
     if args.background is not 'none':
         args.background = {args.variable: args.background}
+    if args.mf_colours == 'True':
+        print("MF")
+        mf_colours = True
+    else:
+        print("NO MF")
+        mf_colours = False
 
     if args.size is 'none':
         if args.mode is 'movie2d':
@@ -286,4 +286,5 @@ if __name__ == "__main__":
         psize = int(args.size)
 
     particleplotting(args.particlefile, psize, args.recordedvar, args.colourmap_recorded, args.background, args.dimensions, args.colourmap, args.landdraw,
-                     args.limits, args.title,start=args.start_time, mode=args.mode, output=args.output)
+                     args.limits, args.title,start=args.start_time, mode=args.mode, output=args.output,
+                     plot_mfregion=mf_colours, mfregion_start=args.mf_start, mf_focus=args.mf_focus)

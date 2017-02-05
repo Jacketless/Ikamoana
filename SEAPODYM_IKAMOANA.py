@@ -13,7 +13,7 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
               Kfilestem=None, Kunits='m2_per_s',
               individuals=100, timestep=172800, months=3, start_age=4, start_month=1, start_year=2003, start_point=None,
               output_density=False, output_file="SIMPODYM", write_grid=False, write_trajectories=True,
-              random_seed=None, mode='jit', verbose=False):
+              random_seed=None, mode='jit', verbose=True):
     if random_seed is None:
         np.random.RandomState()
         random_seed = np.random.get_state()
@@ -45,12 +45,16 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
                                         startD=startD, start_age=fish_age,
                                         diffusion_file=Kfile, diffusion_units=Kunits,
                                         startD_dims={'lon': 'longitude', 'lat': 'latitude', 'time': 'time', 'data': Dname})
+            if verbose:
+                total_pop = getPopFromDensityField(grid)
+                print('Total no. of fish in SEAPODYM run = %s' % total_pop)
+                print(', therefor simulation assumes each particle represents %s individual fish' % total_pop/individuals)
             if start_point is not None:
                 print("All particles starting at position %s %s" % (start_point[0], start_point[1]))
                 fishset = grid.ParticleSet(size=individuals, pclass=SKJ,
                                            lon=[start_point[0]]*individuals, lat=[start_point[1]]*individuals)
             else:
-                fishset = grid.ParticleSet(size=individuals, pclass=SKJ, start_field=grid.Start)
+                fishset = ParticleSet.from_field(grid, size=individuals, pclass=SKJ, start_field=grid.Start)
             results_file = ParticleFile(output_file + '_results', fishset) if write_trajectories is True else None
             if output_density:
                 sim_time = np.linspace(grid.U.time[0], grid.U.time[0]+months*30*24*60*60, num=months)
@@ -61,12 +65,11 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
             grid = Create_SEAPODYM_Grid(forcing_files=month_files, forcing_vars=variables, forcing_dims=dimensions,
                                         start_age=fish_age, diffusion_file=Kfile, diffusion_units=Kunits)
             oldfishset = fishset
-            fishset = grid.ParticleSet(size=individuals, pclass=SKJ, lon=[200]*individuals, lat=[0]*individuals)
+            fishset = ParticleSet.from_list(grid, pclass=SKJ, lon=[200]*individuals, lat=[0]*individuals)
             for p in range(len(fishset.particles)):
                 Copy_Fish_Particle(oldfishset.particles[p], fishset.particles[p], SKJ)
 
-        #if m == start_month:
-        #    fishset = grid.ParticleSet(size=individuals, pclass=SKJ, start_field=grid.Start)
+
         if write_grid:
             grid.write(output_file + '_month' + str(m) + '_')
 
@@ -86,7 +89,7 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
         moveeast = fishset.Kernel(MoveEast)
         movewest = fishset.Kernel(MoveWest)
         print("Executing kernels...")
-        fishset.execute(age + advect + taxis + diffuse + move + landcheck + sampH, starttime=grid.time[0], endtime=grid.time[0]+30*24*60*60, dt=timestep,
+        fishset.execute(age + advect + taxis + diffuse + move + landcheck + sampH, starttime=grid.U.time[0], endtime=grid.U.time[0]+30*24*60*60, dt=timestep,
                         output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
         #fishset.execute(movewest + landcheck, starttime=grid.time[0], endtime=grid.time[0]+30*24*60*60, dt=timestep,
          #               output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
