@@ -9,6 +9,7 @@ from argparse import ArgumentParser
 
 def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
              Uname='u', Vname='v', Hname='habitat', Dname='density',
+             startlons=None, startlats=None,
              dimLon='lon', dimLat='lat',dimTime='time',
              Kfile=None, dK_dxfile=None, dK_dyfile=None, dH_dxfile=None, dH_dyfile=None,
              diffusion_boost=0, diffusion_scale=1, taxis_scale=1,
@@ -52,7 +53,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
             grid.add_field()
         else:
             grid.add_field(Field.from_netcdf('K', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'K'}, glob(str(path.local(Kfile)))))
-            
+
 
     if dH_dxfile is None or dH_dyfile is None:
         # Offline calculation of the diffusion and basic habitat grid
@@ -75,21 +76,33 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
         grid.add_field(Field.from_netcdf('dK_dx', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'dK_dx'}, glob(str(path.local(dK_dxfile)))))
         grid.add_field(Field.from_netcdf('dK_dy', {'lon': 'nav_lon', 'lat': 'nav_lat', 'time': 'time_counter', 'data': 'dK_dy'}, glob(str(path.local(dK_dyfile)))))
 
-    grid.K.interp_method = 'nearest'
-    grid.dK_dx.interp_method = 'nearest'
-    grid.dK_dy.interp_method = 'nearest'
-    grid.H.interp_method = 'nearest'
-    grid.dH_dx.interp_method = 'nearest'
-    grid.dH_dx.interp_method = 'nearest'
+    grid.K.interp_method = grid.dK_dx.interp_method = grid.dK_dy.interp_method = grid.H.interp_method = \
+        grid.dH_dx.interp_method = grid.dH_dx.interp_method = grid.U.interp_method = grid.V.interp_method = 'nearest'
 
     ParticleClass = JITParticle if mode == 'jit' else ScipyParticle
     SKJ = Create_Particle_Class(ParticleClass)
 
-    #if startD is not None:
-    #    print("Creating SEAPODYM_Density field for start conditions from %s" % startD)
-    #    grid.add_field(Field.from_netcdf('SEAPODYM_Density', dimensions=dimensions, filenames=startD))
+    if individuals == 0:
+        # Run full SEAPODYM numbers (can be big!)
+        area = np.zeros(np.shape(grid.U.data[0, :, :]), dtype=np.float32)
+        U = grid.U
+        V = grid.V
+        dy = (V.lon[1] - V.lon[0])/V.units.to_target(1, V.lon[0], V.lat[0])
+        for y in range(len(U.lat)):
+            dx = (U.lon[1] - U.lon[0])/U.units.to_target(1, U.lon[0], U.lat[y])
+            area[y, :] = dy * dx
+        # Convert to km^2
+        area /= 1000*1000
+        # Total fish is density*area
+        total_fish = np.sum(grid.SEAPODYM_Density.data * area)
+        print('Total no. of fish in SEAPODYM run = %s' % total_fish)
+        print('Assuming schools of 10,000 fish, total number of individuals = %s' % str(round(total_fish/10000)))
+        individuals = raw_input('Please enter the number of school (leave blank for default):')
+        if individuals is '':
+            individuals = 1000
 
-    fishset = grid.ParticleSet(size=individuals, pclass=SKJ, start_field=grid.SEAPODYM_Density)
+    fishset = grid.ParticleSet(size=individuals, pclass=SKJ, start_field=grid.SEAPODYM_Density,
+                               lon=startlons, lat=startlats)
 
     for p in fishset.particles:
         p.setAge(start_age)
@@ -102,12 +115,33 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
     move = fishset.Kernel(Move)
     sampH = fishset.Kernel(SampleH)
 
+    month_steps = np.arange(grid.time[0], grid.time[0]+time*timestep, step=30*24*60*60)
+    print("Starting Sim")
+
+    for m in month_steps:
+        print("Starting Month %s, day %s, time %s" %
+              (str(np.where(month_steps == m)[0][0]), (m - grid.time[0])/(24*60*60), m - grid.time[0]))
+        month_files = {'U': str(forcingU + '_month' + m + '.nc'), 'V': str(forcingV + '_month' + m + '.nc'),
+                      'H': str(forcingH + '_month' + m + '.nc')}
+        grid = Grid.from_netcdf(filenames=month_files, variables=variables, dimensions=dimensions, vmax=200)
+        print("Calculating H Gradient Fields")
+        gradients = grid.H.gradient()
+        for field in gradients:
+            grid.add_field(field)
+        K = Create_SEAPODYM_Diffusion_Field(grid.H, 24*60*60, start_age=start_age+m-1,
+                                            diffusion_scale=diffusion_scale, diffusion_boost=diffusion_boost)
+        grid.add_field(K)
+        K_gradients = grid.K.gradient()
+        for field in K_gradients:
+            grid.add_field(field)
+        
+        fishset.execute(age + advect + taxis + diffuse + move, endtime=30*24*60*60-1, dt=timestep,
+                        output_file=fishset.ParticleFile(name=output_file+"_month"+str(np.where(month_steps == m)[0][0])),
+                        interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
+        grid.Density.data[np.where(month_steps == m)[0][0],:,:] = np.transpose(fishset.density(relative=True))
+
     if write_grid:
         grid.write(output_file)
-    print("Starting Sim")
-    fishset.execute(age + advect + taxis + diffuse + move, endtime=fishset.grid.time[0]+time*timestep, dt=timestep,
-                    output_file=fishset.ParticleFile(name=output_file+"_results"),
-                    interval=timestep)#, density_field=density_field)
 
     #Write parameter file
     params = {"forcingU": forcingU, "forcingV": forcingV, "forcingH":forcingH, "startD":startD,
@@ -127,6 +161,7 @@ def SIMPODYM(forcingU, forcingV, forcingH, startD=None,
 def Create_Particle_Class(type=JITParticle):
 
     class SEAPODYM_SKJ(type):
+        active = Variable("active", to_write=False)
         monthly_age = Variable("monthly_age", dtype=np.int32)
         age = Variable('age', to_write=False)
         Vmax = Variable('Vmax', to_write=False)
@@ -151,6 +186,7 @@ def Create_Particle_Class(type=JITParticle):
             self.fish = 100000
             self.H = self.Dx = self.Dy = self.Cx = self.Cy = self.Vx = self.Vy = self.Ax = self.Ay = 0
             self.taxis_scale = 0
+            self.active = 1
 
         def setAge(self, months):
             self.age = months*30*24*60*60
@@ -171,7 +207,7 @@ if __name__ == "__main__":
                    help='Print profiling information after run')
     p.add_argument('-g', '--grid', type=int,  default=None,
                    help='Generate grid file with given dimensions')
-    p.add_argument('-f', '--files', default=['SEAPODYM_Forcing_Data/SEAPODYM2003_PHYS_Prepped.nc', 'SEAPODYM_Forcing_Data/SEAPODYM2003_PHYS_Prepped.nc', 'SEAPODYM_Forcing_Data/SEAPODYM2003_HABITAT_Prepped.nc'],
+    p.add_argument('-f', '--files', default=['SEAPODYM_Forcing_Data/SEAPODYM2003_PHYS_Prepped.nc', 'SEAPODYM_Forcing_Data/SEAPODYM2003_PHYS_Prepped.nc', 'SEAPODYM_Forcing_Data/2002_Fields/HABITAT/2003_HABITAT.nc'],
                    help='List of NetCDF files to load')
     p.add_argument('-v', '--variables', default=['U', 'V', 'H'],
                    help='List of field variables to extract, using PARCELS naming convention')
@@ -183,7 +219,7 @@ if __name__ == "__main__":
                    help='List of dimensions across which field variables occur, as given in the NetCDF files, to map to the --dimensions args')
     p.add_argument('-t', '--time', type=int, default=15,
                    help='List of dimensions across which field variables occur, as given in the NetCDF files, to map to the --dimensions args')
-    p.add_argument('-s', '--startfield', type=str, default='SEAPODYM_Forcing_Data/SEAPODYM2003_DENSITY_Prepped.nc',
+    p.add_argument('-s', '--startfield', type=str, default='SEAPODYM_Forcing_Data/2002_Fields/DENSITY/2003_Density.nc',
                    help='Particle density field with which to initiate particle positions')
     p.add_argument('-o', '--output', default='SIMPODYM2003',
                    help='List of NetCDF files to load')
@@ -197,12 +233,13 @@ if __name__ == "__main__":
                    help='Constant scaler to taxis of tuna')
     p.add_argument('-sa', '--start_age', type=int, default=4,
                    help='Assumed start age of tuna cohort, in months. Defaults to 4')
+    p.add_argument('-wd', '--write_density', type=bool, default=True,
+                   help='Flag to calculate monthly densities, defaults to true')
     p.add_argument('-wg', '--write_grid', type=bool, default=False,
                    help='Flag to write grid files to netcdf, defaults to false')
 
     args = p.parse_args()
     filename = args.output
-
     U = args.files[0]
     V = args.files[1]
     H = args.files[2]
@@ -214,4 +251,4 @@ if __name__ == "__main__":
              dimLat=args.dimensions[0], dimLon=args.dimensions[1], dimTime=args.dimensions[2],
              diffusion_boost=args.boost, diffusion_scale=args.diffusion_scale, taxis_scale=args.taxis_scale,
              start_age=args.start_age, individuals=args.particles, timestep=args.timestep, time=args.time,
-             output_file=args.output, write_grid=args.write_grid, mode=args.mode)
+             output_density=args.write_density, output_file=args.output, write_grid=args.write_grid, mode=args.mode)

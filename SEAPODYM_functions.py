@@ -2,18 +2,22 @@ import numpy as np
 import struct
 from parcels.field import Field
 from parcels.grid import Grid
+from parcels.particle import *
 from netCDF4 import num2date
 from datetime import datetime
+from py import path
+from progressbar import ProgressBar
 
-def V_max(monthly_age, a=0.7343607395421234, b=0.5006692114850767):
+
+def V_max(monthly_age, a=2.225841100458143, b=0.8348850216641774):
     L = GetLengthFromAge(monthly_age)
     V = a * np.power(L, b)
     return V
 
 
 def V_max_C(monthly_age):
-    a=0.7343607395421234
-    b=0.5006692114850767
+    a=2.225841100458143# 0.7343607395421234 old parameters
+    b=0.8348850216641774# 0.5006692114850767 old parameters
     L = GetLengthFromAge(monthly_age)
     V = a * math.pow(L, b)
     return V
@@ -24,15 +28,13 @@ def GetLengthFromAge(monthly_age):
     # K = 0.1965
     # return Linf * (1 - np.exp(-K * age))
     # Hard code discrete age-lengths for now
-    lengths = [3.00, 4.51, 6.02, 11.65, 16.91, 21.83, 26.43, 30.72, 34.73, 38.49,
-               41.99, 45.27, 48.33, 51.19, 53.86, 56.36, 58.70, 60.88, 62.92, 64.83,
-               66.61, 68.27, 69.83, 71.28, 72.64, 73.91, 75.10, 76.21, 77.25, 78.22,
-               79.12, 79.97, 80.76, 81.50, 82.19, 82.83, 83.44, 84.00, 84.53, 85.02,
-               85.48, 85.91, 86.31, 86.69, 87.04, 87.37, 87.68, 87.96, 89.42]
-    if monthly_age > 49:
-        return 89.42/100
-    else:
-        return lengths[monthly_age-1]/100 # Convert to meters
+    lengths = [3.00, 4.51, 6.02, 11.65, 16.91, 21.83, 26.43, 30.72, 34.73, 38.49, 41.99, 45.27,
+               48.33, 51.19, 53.86, 56.36, 58.70, 60.88, 62.92, 64.83, 66.61, 68.27, 69.83, 71.28,
+               72.64, 73.91, 75.10, 76.21, 77.25, 78.22, 79.12, 79.97, 80.76, 81.50, 82.19, 82.83,
+               83.44, 84.00, 84.53, 85.02, 85.48, 85.91, 86.31, 86.69, 87.04, 87.37, 87.68, 87.96,
+               88.23, 88.48, 88.71, 88.93, 89.14, 89.33, 89.51, 89.67, 89.83, 89.97, 90.11, 90.24,
+               90.36, 90.47, 90.57, 90.67, 91.16]
+    return lengths[monthly_age-1]/100 # Convert to meters
 
 
 def Mortality(age, MPmax=0.3, MPexp=0.1008314958945224, MSmax=0.006109001382111822, MSslope=0.8158285706493162,
@@ -52,52 +54,101 @@ def Mortality_C(age, H):
     return Mvar
 
 
-def Create_SEAPODYM_Diffusion_Field(H, timestep=86400, sigma=0.1999858740340303, c=0.9817751085550976, P=3,
-                                    start_age=4, Vmax_slope=1, diffusion_boost=0, diffusion_scale=1):
+def getPopFromDensityField(grid, density_field='Start'):
+    area = np.zeros(np.shape(grid.U.data[0, :, :]), dtype=np.float32)
+    U = grid.U
+    V = grid.V
+    dy = (V.lon[1] - V.lon[0])/V.units.to_target(1, V.lon[0], V.lat[0])
+    for y in range(len(U.lat)):
+        dx = (U.lon[1] - U.lon[0])/U.units.to_target(1, U.lon[0], U.lat[y])
+        area[y, :] = dy * dx
+    # Convert to km^2
+    area /= 1000*1000
+    # Total fish is density*area
+    print(getattr(grid, density_field).data)
+    total_fish = np.sum(getattr(grid, density_field).data * area)
+    return total_fish
+
+
+def Create_Landmask(grid):
+    def isocean(p, lim=1e5):
+        return 1 if p < lim else 0
+
+    nx = grid.H.lon.size
+    ny = grid.H.lat.size
+    mask = np.zeros([nx, ny, 1], dtype=np.int8)
+    pbar = ProgressBar()
+    for i in pbar(range(nx)):
+        for j in range(1, ny-1):
+            if not isocean(grid.H.data[0, j, i]):  # For each land point
+                mask[i,j] = 1
+
+    Mask = Field('LandMask', mask, grid.H.lon, grid.H.lat, transpose=True)
+    Mask.interp_method = 'nearest'
+    return Mask#ClosestLon, ClosestLat
+
+
+def Create_SEAPODYM_Diffusion_Field(H, timestep=30*24*60*60, sigma=0.1769952864978924, c=0.662573993401526, P=3,
+                                    start_age=4, Vmax_slope=1, units='m2_per_s',
+                                    diffusion_boost=0, diffusion_scale=1, sig_scale=1, c_scale=1,
+                                    verbose=True):
+    # Old parameters sigma=0.1999858740340303, c=0.9817751085550976,
     K = np.zeros(np.shape(H.data), dtype=np.float32)
     months = start_age
     age = months*30*24*60*60
     for t in range(H.time.size):
         # Increase age in months if required, to incorporate appropriate Vmax
-        age = H.time[t] - H.time[0] + start_age*30*24*60*60
-        if age - (months*30*24*60*60) > (30*24*60*60):
+        # months in SEAPODYM are all assumed to be 30 days long
+        #age = H.time[t] - H.time[0] + start_age*30*24*60*60 # this is for 'true' ageing
+        age = (start_age+t)*30*24*60*60
+        if age - (months*30*24*60*60) >= (30*24*60*60):
             months += 1
-        print("Calculating diffusivity for fish aged %s months" % months)
-        Dmax = np.power(V_max(months, b=Vmax_slope), 2) / 4 * timestep #fixed b parameter for diffusion
+        if verbose:
+            print('age in days = %s' % (age/(24*60*60)))
+            print("Calculating diffusivity for fish aged %s months" % months)
+        if units == 'nm2_per_mon':
+            Dmax = (np.power(GetLengthFromAge(months)*30*24*3600/1852, 2) / 4 ) * timestep/(60*60*24*30) #vmax = L for diffusion
+        else:
+            Dmax = (np.power(GetLengthFromAge(months), 2) / 4) * timestep  #fixed b parameter for diffusion
         sig_D = sigma * Dmax
         for x in range(H.lon.size):
             for y in range(H.lat.size):
-                K[t, y, x] = sig_D * (1 - c * np.power(H.data[t, y, x], P)) * diffusion_scale + diffusion_boost
+                K[t, y, x] = sig_scale * sig_D * (1 - c_scale * c * np.power(H.data[t, y, x], P)) * diffusion_scale + diffusion_boost
 
-    return Field('K', K, H.lon, H.lat, time=H.time)
+    return Field('K', K, H.lon, H.lat, time=H.time, interp_method='nearest', allow_time_extrapolation=True)
 
 
-def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
-                         Uname='u', Vname='v', Hname='habitat', Dname='density',
-                         dimLon='lon', dimLat='lat', dimTime='time', timestep=86400,
-                         scaleH=None, start_age=4, output_density=False):
-    filenames = {'U': forcingU, 'V': forcingV, 'H': forcingH}
-    variables = {'U': Uname, 'V': Vname, 'H': Hname}
-    dimensions = {'lon': dimLon, 'lat': dimLat, 'time': dimTime}
+def Create_SEAPODYM_Grid(forcing_files, startD=None, startD_dims=None,
+                         forcing_vars={'U': 'u', 'V': 'v', 'H': 'habitat'},
+                         forcing_dims={'lon': 'lon', 'lat': 'lon', 'time': 'time'}, K_timestep=30*24*60*60,
+                         diffusion_file=None, diffusion_units='m2_per_s',
+                         diffusion_dims={'lon': 'longitude', 'lat': 'latitude', 'time': 'time', 'data': 'skipjack_diffusion_rate'},
+                         scaleH=None, start_age=4, output_density=False, diffusion_scale=1, sig_scale=1, c_scale=1,
+                         verbose=False):
+    if startD_dims is None:
+        startD_dims = forcing_dims
+    if verbose:
+        print("Creating Grid\nLoading files:")
+    for f in forcing_files.values():
+        print(f)
+    grid = Grid.from_netcdf(filenames=forcing_files, variables=forcing_vars, dimensions=forcing_dims,
+                            vmin=-200, vmax=1e34, interp_method='nearest', allow_time_extrapolation=True)
 
     if startD is not None:
-        filenames.update({'SEAPODYM_Density': startD})
-        variables.update({'SEAPODYM_Density': Dname})
-
-    print("Creating Grid")
-    grid = Grid.from_netcdf(filenames=filenames, variables=variables, dimensions=dimensions, vmin=-200, vmax=200)
-    print("Grid contains fields:")
-    for f in grid.fields:
-        print(f)
+        grid.add_field(Field.from_netcdf('Start', dimensions=startD_dims,
+                                         filenames=path.local(startD), vmax=1000,
+                                         interp_method='nearest', allow_time_extrapolation=True))
 
     if output_density:
         # Add a density field that will hold particle densities
         grid.add_field(Field('Density', np.full([grid.U.lon.size, grid.U.lat.size, grid.U.time.size],-1, dtype=np.float64),
                        grid.U.lon, grid.U.lat, depth=grid.U.depth, time=grid.U.time, transpose=True))
-        density_field = grid.Density
-    else:
-        density_field = None
 
+    LandMask = Create_Landmask(grid)
+    grid.add_field(LandMask)
+    grid.U.data[grid.U.data > 1e5] = 0
+    grid.V.data[grid.V.data > 1e5] = 0
+    grid.H.data[grid.H.data > 1e5] = 0
     # Scale the H field between zero and one if required
     if scaleH is not None:
         grid.H.data /= np.max(grid.H.data)
@@ -105,9 +156,37 @@ def Create_SEAPODYM_Grid(forcingU, forcingV, forcingH, startD=None,
         grid.H.data *= scaleH
 
     # Offline calculate the 'diffusion' grid as a function of habitat
-    print("Creating Diffusion Field")
-    K = Create_SEAPODYM_Diffusion_Field(grid.H, timestep, start_age)
+    if verbose:
+        print("Creating Diffusion Field")
+    if diffusion_file is None:
+        K = Create_SEAPODYM_Diffusion_Field(grid.H, timestep=K_timestep, start_age=start_age,
+                                            diffusion_scale=diffusion_scale, units=diffusion_units,
+                                            sig_scale=sig_scale, c_scale=c_scale, verbose=verbose)
+    else:
+        if verbose:
+            print("Loading from file: %s" % diffusion_file)
+        K = Field.from_netcdf('K', diffusion_dims, [diffusion_file], interp_method='nearest', vmax=1000000)
+        if diffusion_units == 'nm2_per_mon':
+            K.data *= 1.30427305
+
     grid.add_field(K)
+    if verbose:
+        print("Calculating H Gradient Fields")
+    gradients = grid.H.gradient()
+    for field in gradients:
+        grid.add_field(field)
+    if verbose:
+        print("Calculating K Gradient Fields")
+    K_gradients = grid.K.gradient()
+    for field in K_gradients:
+        grid.add_field(field)
+    grid.K.interp_method = grid.dK_dx.interp_method = grid.dK_dy.interp_method = grid.H.interp_method = \
+                           grid.dH_dx.interp_method = grid.dH_dy.interp_method = grid.U.interp_method = grid.V.interp_method = 'nearest'
+
+    #grid.K.allow_time_extrapolation = grid.dK_dx.allow_time_extrapolation = grid.dK_dy.allow_time_extrapolation = \
+    #                                  grid.H.allow_time_extrapolation = grid.dH_dx.allow_time_extrapolation = \
+    #                                  grid.dH_dy.allow_time_extrapolation = grid.U.allow_time_extrapolation = \
+    #                                  grid.V.allow_time_extrapolation = True
 
     return grid
 
@@ -314,3 +393,39 @@ def Field_from_DYM(filename, name=None, xlim=None, ylim=None, fromyear=None, fro
     times_in_s = np.array(times_in_s, dtype=np.float32)
 
     return Field(name, data, lon=x[0,:], lat=y[:,0][::-1], time=times_in_s, time_origin=origin)
+
+
+def Create_TaggedFish_Class(type=JITParticle):
+    class TaggedFish(type):
+        monthly_age = Variable("monthly_age", dtype=np.int32)
+        age = Variable('age', to_write=False)
+        Vmax = Variable('Vmax', to_write=False)
+        Dv_max = Variable('Dv_max', to_write=False)
+        H = Variable('H', to_write=False)
+        Dx = Variable('Dx', to_write=False)
+        Dy = Variable('Dy', to_write=False)
+        Cx = Variable('Cx', to_write=False)
+        Cy = Variable('Cy', to_write=False)
+        Vx = Variable('Vx', to_write=False)
+        Vy = Variable('Vy', to_write=False)
+        Ax = Variable('Ax', to_write=False)
+        Ay = Variable('Ay', to_write=False)
+        taxis_scale = Variable('taxis_scale', to_write=False)
+        release_time = Variable('release_time', dtype=np.float32, initial=0, to_write=False)
+
+        def __init__(self, *args, **kwargs):
+            """Custom initialisation function which calls the base
+            initialisation and adds the instance variable p"""
+            super(TaggedFish, self).__init__(*args, **kwargs)
+            self.setAge(4.)
+            self.H = self.Dx = self.Dy = self.Cx = self.Cy = self.Vx = self.Vy = self.Ax = self.Ay = 0
+            self.taxis_scale = 0
+            self.active = 0
+            self.release_time = 0
+
+        def setAge(self, months):
+            self.age = months*30*24*60*60
+            self.monthly_age = int(self.age/(30*24*60*60))
+            self.Vmax = V_max(self.monthly_age)
+
+    return TaggedFish
