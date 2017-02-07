@@ -159,8 +159,8 @@ if __name__ == "__main__":
     times = [float(v) for v in D_vars['"time"']]
 
     if raijin_run:
-        filenames = [glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_u_*.nc"))),
-                         glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_v_*.nc")))]
+        filenames = [sorted(glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_u_*.nc")))),
+                         sorted(glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_v_*.nc"))))]
             #filenames = [glob(str(path.local('SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003run_PHYS_month*.nc')))] * 2
             #dimensions = {'lon': 'longitude', 'lat': 'latitude', 'time': 'time'}
 
