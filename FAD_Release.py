@@ -168,7 +168,7 @@ if __name__ == "__main__":
     #files = {'U': ufiles, 'V': vfiles}
     #files = {'U': "/g/data/gb6/BRAN/BRAN3p5/OFAM/ocean_u_*.nc", 'V': "/g/data/gb6/BRAN/BRAN3p5/OFAM/ocean_v_*.nc"}
 
-    print(filenames)
+    #print(filenames)
 
     FADRelease(filenames, variables, dimensions, lons=[float(v) for v in D_vars['"lon"']], lats=[float(v) for v in D_vars['"lat"']],
                deploy_times=times, individuals=N_FADs,
