@@ -3,6 +3,8 @@ from Behaviour import *
 import numpy as np
 from SEAPODYM_functions import *
 from argparse import ArgumentParser
+from glob import glob
+from py import path
 
 
 def delaystart(particle, grid, time, dt):
@@ -24,18 +26,57 @@ def delayedAdvectionRK4(particle, grid, time, dt):
         particle.lat += (v1 + 2*v2 + 2*v3 + v4) / 6. * dt
 
 
-def FADRelease(grid, lons=[0], lats=[0], individuals=100, deploy_times=None, timestep=21600, time=30,
+def loadBRANgrid(Ufilenames, Vfilenames,
+                  vars={'U': 'u', 'V': 'v'},
+                  dims={'lat': 'lat', 'lon': 'lon', 'time': 'time'}):
+    filenames = {'U': Ufilenames,
+                 'V': Vfilenames}
+    print("loading grid files:")
+    print(filenames)
+    return Grid.from_netcdf(filenames, vars, dims)
+
+
+def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals=100, deploy_times=None, timestep=21600, time=30,
                output_file='FADRelease', mode='scipy'):
 
-    starttime = grid.time[0]
+    first_time  = datetime.fromtimestamp(np.min(deploy_times))
+    end_time = datetime.fromtimestamp(np.max(deploy_times))
+    year_start = year = first_time.year
+    month_start = month = first_time.month
+    year_end = end_time.year
+    month_end = end_time.month
+    T = (year_end-year_start)*12 - month_start + month_end + 1
+
+
+    print(first_time)
+    print(datetime.fromtimestamp(757382400))
+    first_month_index = first_time - datetime.fromtimestamp(757382400)
+
+    print(float(first_month_index.days)/365 * 12)
+
+    first_month_index = int(float(first_month_index.days)/365 * 12) - 1
+    print(first_month_index)
+
+    grid = loadBRANgrid(filenames[0][first_month_index:(first_month_index+3)],
+                        filenames[1][first_month_index:(first_month_index+3)],
+                        variables, dimensions)
+    #grid.write('BRAN_test')
+
+    #shift = (datetime(1992,1,1) - datetime(1970,1,1)).total_seconds()
+    #grid.U.time += shift
+    #grid.V.time += shift
+
+    starttime = grid.U.time[0]
     print("Start = %s (%s)" % (starttime, datetime.fromtimestamp(starttime)))
 
     ParticleClass = JITParticle if mode == 'jit' else ScipyParticle
 
     class FAD(ParticleClass):
         deployed = Variable('deployed', dtype=np.float32)
+        active = Variable('active', dtype=np.int8)
 
-    fadset = grid.ParticleSet(size=individuals, pclass=FAD, lon=lons, lat=lats)
+    fadset = ParticleSet(grid, pclass=FAD, lon=lons, lat=lats)
+    #results_file = ParticleFile(output_file + '_trajectories', fadset)
 
     for f in range(len(fadset.particles)):
         fadset.particles[f].deployed = deploy_times[f]#-starttime#(deploy_times[f]-datetime.fromtimestamp(starttime+(22*365*24*60*60))).total_seconds()
@@ -44,10 +85,13 @@ def FADRelease(grid, lons=[0], lats=[0], individuals=100, deploy_times=None, tim
         print(datetime.fromtimestamp(fadset.particles[f].deployed))
 
     print("Starting Sim")
-    fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
-                    starttime=starttime, endtime=starttime+time*timestep, dt=timestep,
-                    output_file=fadset.ParticleFile(name=output_file+"_results"),
-                    interval=timestep)#, density_field=density_field)
+    for m in range(first_month_index, T):
+        print("Month %s" % m)
+        #fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
+        #               starttime=starttime, runtime=delta(months=1), dt=timestep,
+        #               output_file=results_file, interval=timestep)
+        grid.advancetime(loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions))
+        print("Building grid from %s" % grid.U.time[0])
 
 
 if __name__ == "__main__":
@@ -59,7 +103,7 @@ if __name__ == "__main__":
      #              help='List of NetCDF files to load')
     p.add_argument('-f', '--files', default=['/Volumes/4TB SAMSUNG/Ocean_Model_Data/OFAM_month1/ocean_u_1993_01.TropPac.nc', '/Volumes/4TB SAMSUNG/Ocean_Model_Data/OFAM_month1/ocean_v_1993_01.TropPac.nc'],
                    help='List of NetCDF files to load')
-    p.add_argument('-de', '--deployment_file', default="Test_FAD_Deployments.txt",
+    p.add_argument('-de', '--deployment_file', default="TUBS FAD Deployments.txt",
                    help='List of NetCDF files to load')
     p.add_argument('-v', '--variables', default=['U', 'V'],
                    help='List of field variables to extract, using PARCELS naming convention')
@@ -79,8 +123,18 @@ if __name__ == "__main__":
                    help='Time of tag release (seconds since 1-1-1970)')
     p.add_argument('-l', '--location', type=float, nargs=2, default=[180,0],
                    help='Release location (lon,lat)')
+    p.add_argument('-r', '--raijin_run', type=str, default='False',
+                   help='Raijin run boolean, defaults to False (true will overwrite filename locations etc.')
     args = p.parse_args()
-    #filename = '/short/e14/jsp561/' + args.output
+
+    if args.raijin_run == 'True':
+        print("Raijin Run")
+        raijin_run = True
+    else:
+        raijin_run = False
+
+    if raijin_run:
+        output_filename = '/short/e14/jsp561/' + args.output
 
     U = args.files[0]
     V = args.files[1]
@@ -88,7 +142,6 @@ if __name__ == "__main__":
     filenames = {'U': args.files[0], 'V': args.files[1]}
     variables = {'U': args.netcdf_vars[0], 'V': args.netcdf_vars[1]}
     dimensions = {'lon': args.map_dimensions[1], 'lat': args.map_dimensions[0], 'time': args.map_dimensions[2]}
-
     # Load FAD deployment data
     D_file = open(args.deployment_file, 'r')
     vars = D_file.readline().split()
@@ -100,51 +153,24 @@ if __name__ == "__main__":
     for line in D_file:
         for v in range(len(vars)):
             D_vars[vars[v]].append(line.split()[v])
+
     N_FADs = len(D_vars['"time"'])
     print("Loaded %s FAD deployments" % N_FADs)
 
     times = [float(v) for v in D_vars['"time"']]
 
-    times = times[0:10]
+    if raijin_run:
+        filenames = [glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_u_*.nc"))),
+                         glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_v_*.nc")))]
+            #filenames = [glob(str(path.local('SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003run_PHYS_month*.nc')))] * 2
+            #dimensions = {'lon': 'longitude', 'lat': 'latitude', 'time': 'time'}
 
-    first_time = datetime.fromtimestamp(np.min(times))
-    last_time = datetime.fromtimestamp(np.max(times))
 
-    print(first_time)
-    print(last_time)
-
-    year_start = year = first_time.year
-    month_start = month = first_time.month
-    year_end = last_time.year
-    month_end = last_time.month
-
-    T = (year_end-year_start)*12 - month_start + month_end + 1
-    ufiles = []
-    vfiles = []
-    # create rest
-    for t in range(T):
-        if month < 10:
-            ufiles.append("/g/data/gb6/BRAN/BRAN_3p5/OFAM/ocean_u_%s_0%s.nc" % (year, month))
-            vfiles.append("/g/data/gb6/BRAN/BRAN_3p5/OFAM/ocean_v_%s_0%s.nc" % (year, month))
-        else:
-            ufiles.append("/g/data/gb6/BRAN/BRAN_3p5/OFAM/ocean_u_%s_%s.nc" % (year, month))
-            vfiles.append("/g/data/gb6/BRAN/BRAN_3p5/OFAM/ocean_v_%s_%s.nc" % (year, month))
-        month += 1
-        if month > 12:
-            month = 1
-            year += 1
-
-    variables = {'U': args.netcdf_vars[0], 'V': args.netcdf_vars[1]}
-    dimensions = {'lon': args.map_dimensions[1], 'lat': args.map_dimensions[0], 'time': args.map_dimensions[2]}
     #files = {'U': ufiles, 'V': vfiles}
-    files = {'U': "/g/data/gb6/BRAN/BRAN3p5/OFAM/ocean_u_*.nc", 'V': "/g/data/gb6/BRAN/BRAN3p5/OFAM/ocean_v_*.nc"}
+    #files = {'U': "/g/data/gb6/BRAN/BRAN3p5/OFAM/ocean_u_*.nc", 'V': "/g/data/gb6/BRAN/BRAN3p5/OFAM/ocean_v_*.nc"}
 
-    grid = Grid.from_netcdf(filenames=files, variables=variables, dimensions=dimensions, vmin=-200, vmax=200)
-    grid.write('BRAN_test')
+    print(filenames)
 
-    #shift = (datetime(1992,1,1) - datetime(1970,1,1)).total_seconds()
-    #grid.time += shift
-
-    #FADRelease(grid, lons=[float(v) for v in D_vars['"lon"']], lats=[float(v) for v in D_vars['"lat"']],
-     #          deploy_times=times, individuals=N_FADs,
-      #         timestep=args.timestep, time=args.time, output_file=args.output, mode=args.mode)
+    FADRelease(filenames, variables, dimensions, lons=[float(v) for v in D_vars['"lon"']], lats=[float(v) for v in D_vars['"lat"']],
+               deploy_times=times, individuals=N_FADs,
+               timestep=args.timestep, time=args.time, output_file=output_filename, mode=args.mode)
