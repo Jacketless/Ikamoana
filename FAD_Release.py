@@ -1,7 +1,5 @@
 from parcels import *
-from Behaviour import *
 import numpy as np
-from SEAPODYM_functions import *
 from argparse import ArgumentParser
 from glob import glob
 from py import path
