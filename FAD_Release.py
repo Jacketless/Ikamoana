@@ -3,7 +3,7 @@ import numpy as np
 from argparse import ArgumentParser
 from glob import glob
 from py import path
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, delta
 
 
 def delaystart(particle, grid, time, dt):
