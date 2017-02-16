@@ -108,7 +108,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
         #fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
         #               starttime=starttime, runtime=delta(months=1), dt=timestep,
         #               output_file=results_file, interval=timestep)
-        grid.advancetime(loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions))
+        advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions))
         print("Building grid from %s" % grid.U.time[0])
 
 
