@@ -71,7 +71,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
     print(float(first_month_index.days)/365 * 12)
 
     first_month_index = int(float(first_month_index.days)/365 * 12) - 1
-    last_month_index = int(float(last_month_index.days)/365 * 12) - 1
+    last_month_index = int(float(last_month_index.days)/365 * 12)
     print("Earliest month index = %s" % first_month_index)
     print("Last month index = %s" % last_month_index)
 
@@ -94,7 +94,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
         active = Variable('active', dtype=np.int8)
 
     fadset = ParticleSet(grid, pclass=FAD, lon=lons, lat=lats)
-    #results_file = ParticleFile(output_file + '_trajectories', fadset)
+    results_file = ParticleFile(output_file + '_trajectories', fadset)
 
     for f in range(len(fadset.particles)):
         fadset.particles[f].deployed = deploy_times[f]#-starttime#(deploy_times[f]-datetime.fromtimestamp(starttime+(22*365*24*60*60))).total_seconds()
@@ -105,9 +105,9 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
     print("Starting Sim")
     for m in range(first_month_index, last_month_index):
         print("Month %s" % m)
-        #fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
-        #               starttime=starttime, runtime=delta(months=1), dt=timestep,
-        #               output_file=results_file, interval=timestep)
+        fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
+                       starttime=starttime, runtime=delta(months=1), dt=timestep,
+                       output_file=results_file, interval=timestep)
         advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions))
         print("Building grid from %s" % grid.U.time[0])
 
