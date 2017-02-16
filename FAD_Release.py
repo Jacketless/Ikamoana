@@ -35,6 +35,22 @@ def loadBRANgrid(Ufilenames, Vfilenames,
     return Grid.from_netcdf(filenames, vars, dims)
 
 
+def advanceGrid1Month(grid, gridnew):
+    for v in grid.fields:
+            vnew = getattr(gridnew, v.name)
+            # Very roughly, we will kick out same amount of days' data as the new month,
+            # and add on this month (which will range from 28-31 days data)
+            days = len(vnew.time)
+            if np.min(vnew.time) > v.time[-1]:  # forward in time, so appending at end
+                v.data = np.concatenate((v.data[days:, :, :], vnew.data[:, :, :]), 0)
+                v.time = np.concatenate((v.time[days:], vnew.time))
+            elif np.max(vnew.time) < v.time[0]:  # backward in time, so prepending at start
+                v.data = np.concatenate((vnew.data[:, :, :], v.data[:-days, :, :]), 0)
+                v.time = np.concatenate((vnew.time, v.time[:-days]))
+            else:
+                raise RuntimeError("Time of gridnew in grid.advancetime() overlaps with times in old grid")
+
+
 def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals=100, deploy_times=None, timestep=21600, time=30,
                output_file='FADRelease', mode='scipy'):
 
@@ -50,11 +66,14 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
     print(first_time)
     print(datetime.fromtimestamp(757382400))
     first_month_index = first_time - datetime.fromtimestamp(757382400)
+    last_month_index = end_time - datetime.fromtimestamp(757382300)
 
     print(float(first_month_index.days)/365 * 12)
 
     first_month_index = int(float(first_month_index.days)/365 * 12) - 1
-    print(first_month_index)
+    last_month_index = int(float(last_month_index.days)/365 * 12) - 1
+    print("Earliest month index = %s" % first_month_index)
+    print("Last month index = %s" % last_month_index)
 
     grid = loadBRANgrid(filenames[0][first_month_index:(first_month_index+3)],
                         filenames[1][first_month_index:(first_month_index+3)],
@@ -84,7 +103,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
         print(datetime.fromtimestamp(fadset.particles[f].deployed))
 
     print("Starting Sim")
-    for m in range(first_month_index, T):
+    for m in range(first_month_index, last_month_index):
         print("Month %s" % m)
         #fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
         #               starttime=starttime, runtime=delta(months=1), dt=timestep,
