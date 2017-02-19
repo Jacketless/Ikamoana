@@ -7,7 +7,8 @@ import math
 from argparse import ArgumentParser
 
 
-def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
+#def IKAMOANA():
+def DensityTaxis_SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
               Uname='u', Vname='v', Hname='habitat', Dname='skipjack_cohort_20021015_density_M0',
               dimLon='lon', dimLat='lat',dimTime='time',
               Kfilestem=None, Kunits='m2_per_s',
@@ -45,10 +46,21 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
                                         startD=startD, start_age=fish_age,
                                         diffusion_file=Kfile, diffusion_units=Kunits,
                                         startD_dims={'lon': 'longitude', 'lat': 'latitude', 'time': 'time', 'data': Dname})
+            ## Add a tuna density field that will be used for taxis (in place of typical SEAPODYM habitat)
+            grid.add_field(Field('FishDensity', grid.Start.data/np.sum(grid.Start.data[0,:,:]), grid.Start.lon, grid.Start.lat, grid.Start.time))
+            grid.FishDensity.interp_method = 'nearest'
+            grid.add_constant('MaxDensity', np.max(grid.FishDensity.data))
+            print("Max relative density = %s" % grid.MaxDensity)
+            gradients = grid.FishDensity.gradient()
+            for field in gradients:
+                grid.add_field(field)
+            for field in grid.fields:
+                print(field.name)
+
             if verbose:
                 total_pop = getPopFromDensityField(grid)
                 print('Total no. of fish in SEAPODYM run = %s' % total_pop)
-                print('therefor simulation assumes each particle represents %s individual fish' % str(total_pop/individuals))
+                print(', therefor simulation assumes each particle represents %s individual fish' % (total_pop/individuals))
             if start_point is not None:
                 print("All particles starting at position %s %s" % (start_point[0], start_point[1]))
                 fishset = grid.ParticleSet(size=individuals, pclass=SKJ,
@@ -68,6 +80,14 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
             fishset = ParticleSet.from_list(grid, pclass=SKJ, lon=[200]*individuals, lat=[0]*individuals)
             for p in range(len(fishset.particles)):
                 Copy_Fish_Particle(oldfishset.particles[p], fishset.particles[p], SKJ)
+#           # Add a tuna density field that will be used for taxis (in place of typical SEAPODYM habitat)
+            grid.add_field(Field('FishDensity', fishset.density(relative=True), grid.U.lon, grid.U.lat, grid.U.time,
+                                 transpose=True, interp_method='lines', allow_time_extrapolation=True))
+            gradients = grid.FishDensity.gradient()
+            for field in gradients:
+                grid.add_field(field)
+            grid.add_constant('MaxDensity', np.max(grid.FishDensity.data))
+            print("Max relative density = %s" % grid.MaxDensity)
 
 
         if write_grid:
@@ -82,18 +102,15 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
         age = fishset.Kernel(AgeParticle)
         diffuse = fishset.Kernel(LagrangianDiffusion)
         advect = fishset.Kernel(Advection_C)
-        taxis = fishset.Kernel(TaxisRK4)#fishset.Kernel(GradientRK4_C)
-        combinedadvection = fishset.Kernel(CurrentAndTaxisRK4)
+        taxis = fishset.Kernel(FishDensityClimber)
         move = fishset.Kernel(Move)
         landcheck = fishset.Kernel(MoveOffLand)
         sampH = fishset.Kernel(SampleH)
         moveeast = fishset.Kernel(MoveEast)
         movewest = fishset.Kernel(MoveWest)
         print("Executing kernels...")
-        fishset.execute(age + combinedadvection + diffuse + move + landcheck + sampH, starttime=grid.U.time[0], endtime=grid.U.time[0]+30*24*60*60, dt=timestep,
+        fishset.execute(age + advect + taxis + diffuse + move + landcheck + sampH, starttime=grid.U.time[0], endtime=grid.U.time[0]+30*24*60*60, dt=timestep,
                         output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
-        #fishset.execute(age + advect + taxis + diffuse + move + landcheck + sampH, starttime=grid.U.time[0], endtime=grid.U.time[0]+30*24*60*60, dt=timestep,
-        #                output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
         #fishset.execute(movewest + landcheck, starttime=grid.time[0], endtime=grid.time[0]+30*24*60*60, dt=timestep,
          #               output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
         if output_density:
@@ -224,7 +241,7 @@ if __name__ == "__main__":
         args.startfield = 'SEAPODYM_Forcing_Data/Latest/DENSITY/INTERIM-NEMO-PISCES_skipjack_cohort_19961015_density_M0_19970115.nc'
         args.startfield_varname = 'skipjack_cohort_19961015_density_M0'
 
-    SIMPLEDYM_SIM(Ufilestem=args.files[0], Vfilestem=args.files[1], Hfilestem=args.files[2], startD=args.startfield,
+    DensityTaxis_SIMPLEDYM_SIM(Ufilestem=args.files[0], Vfilestem=args.files[1], Hfilestem=args.files[2], startD=args.startfield,
                   Uname=args.netcdf_vars[0], Vname=args.netcdf_vars[1], Hname=args.netcdf_vars[2], Dname=args.startfield_varname,
                   dimLat=args.dimensions[0], dimLon=args.dimensions[1], dimTime=args.dimensions[2],
                   Kfilestem=args.k_file_stem, Kunits=args.k_file_units,

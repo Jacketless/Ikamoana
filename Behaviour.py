@@ -5,8 +5,8 @@ import math
 
 def SampleH(particle, grid, time, dt):
     particle.H = grid.H[time, particle.lon, particle.lat]
-    #particle.dHdx = grid.dH_dx[time, particle.lon, particle.lat]
-    #particle.dHdy = grid.dH_dy[time, particle.lon, particle.lat]
+    particle.dHdx = grid.dH_dx[time, particle.lon, particle.lat]
+    particle.dHdy = grid.dH_dy[time, particle.lon, particle.lat]
 
 
 def CheckRelease(particle, grid, time, dt):
@@ -142,6 +142,53 @@ def GradientRK4_C(particle, grid, time, dt):
         particle.Vy = grid.dH_dy[time, particle.lon, particle.lat] * particle.Vmax * (1000*1.852*60) * particle.taxis_scale * f_lat
         #particle.Vx = Vx #* particle.Vmax #* (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * f_lon
         #particle.Vy = Vy #* particle.Vmax * (1000*1.852*60) * f_lat
+
+
+def TaxisRK4(particle, grid, time, dt):
+    if particle.active == 1:
+        u1 = grid.Tx[time, particle.lon, particle.lat]
+        v1 = grid.Ty[time, particle.lon, particle.lat]
+        lon1, lat1 = (particle.lon + u1*.5*dt, particle.lat + v1*.5*dt)
+        u2, v2 = (grid.Tx[time + .5 * dt, lon1, lat1], grid.Ty[time + .5 * dt, lon1, lat1])
+        lon2, lat2 = (particle.lon + u2*.5*dt, particle.lat + v2*.5*dt)
+        u3, v3 = (grid.Tx[time + .5 * dt, lon2, lat2], grid.Ty[time + .5 * dt, lon2, lat2])
+        lon3, lat3 = (particle.lon + u3*dt, particle.lat + v3*dt)
+        u4, v4 = (grid.Tx[time + dt, lon3, lat3], grid.Ty[time + dt, lon3, lat3])
+        Vx = (u1 + 2*u2 + 2*u3 + u4) / 6.
+        Vy = (v1 + 2*v2 + 2*v3 + v4) / 6.
+        particle.Vx = Vx * dt
+        particle.Vy = Vy * dt
+
+
+def CurrentAndTaxisRK4(particle, grid, time, dt):
+    if particle.active == 1:
+        u1 = grid.TU[time, particle.lon, particle.lat]
+        v1 = grid.TV[time, particle.lon, particle.lat]
+        lon1, lat1 = (particle.lon + u1*.5*dt, particle.lat + v1*.5*dt)
+        u2, v2 = (grid.TU[time + .5 * dt, lon1, lat1], grid.TV[time + .5 * dt, lon1, lat1])
+        lon2, lat2 = (particle.lon + u2*.5*dt, particle.lat + v2*.5*dt)
+        u3, v3 = (grid.TU[time + .5 * dt, lon2, lat2], grid.TV[time + .5 * dt, lon2, lat2])
+        lon3, lat3 = (particle.lon + u3*dt, particle.lat + v3*dt)
+        u4, v4 = (grid.TU[time + dt, lon3, lat3], grid.TV[time + dt, lon3, lat3])
+        Vx = (u1 + 2*u2 + 2*u3 + u4) / 6.
+        Vy = (v1 + 2*v2 + 2*v3 + v4) / 6.
+        particle.Ax = Vx * dt
+        particle.Ay = Vy * dt
+        particle.Vx = 0
+        particle.Vy = 0
+
+
+def FishDensityClimber(particle, grid, time, dt):
+    if particle.active == 1:
+        f_lat3 = dt / 1000. / 1.852 / 60.
+        f_lon3 = f_lat3 / math.cos(particle.lat*math.pi/180)
+        particle.Vx = grid.dFishDensity_dx[time, particle.lon, particle.lat] * \
+                      particle.Vmax * (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * \
+                      particle.taxis_scale * f_lon3 #* grid.MaxDensity
+        particle.Vy = grid.dFishDensity_dy[time, particle.lon, particle.lat] * \
+                      particle.Vmax * (1000*1.852*60) * \
+                      particle.taxis_scale * f_lat3 #* grid.MaxDensity
+        print("Vx= %s  Vy= %s" % (particle.Vx, particle.Vy))
 
 
 def LagrangianDiffusion(particle, grid, time, dt):
