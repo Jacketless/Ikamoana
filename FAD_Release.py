@@ -25,6 +25,11 @@ def delayedAdvectionRK4(particle, grid, time, dt):
         particle.lat += (v1 + 2*v2 + 2*v3 + v4) / 6. * dt
 
 
+def KillFAD(particle):
+    print("FAD hit model bounds!")
+    particle.die()
+
+
 def loadBRANgrid(Ufilenames, Vfilenames,
                   vars={'U': 'u', 'V': 'v'},
                   dims={'lat': 'lat', 'lon': 'lon', 'time': 'time'},
@@ -82,7 +87,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
     print("Loading first grid snapshot")
     grid = loadBRANgrid(filenames[0][first_month_index:(first_month_index+3)],
                         filenames[1][first_month_index:(first_month_index+3)],
-                        variables, dimensions)
+                        variables, dimensions, shift)
     #grid.write('BRAN_test')
 
     #shift = (datetime(1992,1,1) - datetime(1970,1,1)).total_seconds()
@@ -110,8 +115,6 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
 
     print("Starting Sim")
     for m in range(first_month_index, last_month_index):
-        grid.U.time += shift
-        grid.V.time += shift
         print("Month %s" % m)
         start = grid.U.time[0]
         end = grid.U.time[0]+(30*24*60*60)
@@ -120,8 +123,8 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
               (datetime.fromtimestamp(start), datetime.fromtimestamp(end), (end-start)/timestep))
         fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
                        starttime=grid.U.time[0], endtime=grid.U.time[0]+(30*24*60*60), dt=timestep,
-                       output_file=results_file, interval=timestep)
-        advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions))
+                       output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: KillFAD})
+        advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions, shift))
 
 
 if __name__ == "__main__":
