@@ -27,12 +27,16 @@ def delayedAdvectionRK4(particle, grid, time, dt):
 
 def loadBRANgrid(Ufilenames, Vfilenames,
                   vars={'U': 'u', 'V': 'v'},
-                  dims={'lat': 'lat', 'lon': 'lon', 'time': 'time'}):
+                  dims={'lat': 'lat', 'lon': 'lon', 'time': 'time'},
+                  shift=0):
     filenames = {'U': Ufilenames,
                  'V': Vfilenames}
     print("loading grid files:")
     print(filenames)
-    return Grid.from_netcdf(filenames, vars, dims)
+    grid = Grid.from_netcdf(filenames, vars, dims)
+    grid.U.time += shift
+    grid.V.time += shift
+    return grid
 
 
 def advanceGrid1Month(grid, gridnew):
@@ -161,7 +165,8 @@ if __name__ == "__main__":
 
     if raijin_run:
         output_filename = '/short/e14/jsp561/' + args.output
-        shift = timedelta(days=365)*10
+        shift = timedelta(days=365)*9
+        shift = shift.total_seconds()
     else:
         output_filename = args.output
         shift = 0
