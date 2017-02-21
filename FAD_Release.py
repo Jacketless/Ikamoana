@@ -52,7 +52,7 @@ def advanceGrid1Month(grid, gridnew):
 
 
 def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals=100, deploy_times=None, timestep=21600, time=30,
-               output_file='FADRelease', mode='scipy', first_file_date=757382400):
+               output_file='FADRelease', mode='scipy', first_file_date=757382400, shift=0):
 
     first_time  = datetime.fromtimestamp(np.min(deploy_times))
     end_time = datetime.fromtimestamp(np.max(deploy_times))
@@ -106,6 +106,8 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
 
     print("Starting Sim")
     for m in range(first_month_index, last_month_index):
+        grid.U.time_origin += shift
+        grid.V.time_origin += shift
         print("Month %s" % m)
         start = grid.U.time[0]
         end = grid.U.time[0]+(30*24*60*60)
@@ -159,8 +161,10 @@ if __name__ == "__main__":
 
     if raijin_run:
         output_filename = '/short/e14/jsp561/' + args.output
+        shift = timedelta(days=365)
     else:
         output_filename = args.output
+        shift = 0
 
     U = args.files[0]
     V = args.files[1]
@@ -206,4 +210,5 @@ if __name__ == "__main__":
 
     FADRelease(filenames, variables, dimensions, lons=[float(v) for v in D_vars['"lon"']], lats=[float(v) for v in D_vars['"lat"']],
                deploy_times=times, individuals=N_FADs,
-               timestep=args.timestep, time=args.time, output_file=output_filename, mode=args.mode, first_file_date=first_file)
+               timestep=args.timestep, time=args.time, output_file=output_filename, mode=args.mode,
+               first_file_date=first_file, shift=shift)
