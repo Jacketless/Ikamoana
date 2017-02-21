@@ -92,7 +92,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
 
     class FAD(ParticleClass):
         deployed = Variable('deployed', dtype=np.float32, to_write=False)
-        active = Variable('active', dtype=np.int16, to_write=True)
+        active = Variable('active', dtype=np.float32, to_write=True)
 
     fadset = ParticleSet(grid, pclass=FAD, lon=lons, lat=lats)
     results_file = ParticleFile(output_file + '_trajectories', fadset)
