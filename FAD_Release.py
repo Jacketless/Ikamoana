@@ -188,6 +188,7 @@ if __name__ == "__main__":
     if raijin_run:
         filenames = [sorted(glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_u_*.nc")))),
                      sorted(glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_v_*.nc"))))]
+        first_file = 757382400
     else:
         filenames = [sorted(glob(str(path.local("SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003run_PHYS_month*.nc")))),
                      sorted(glob(str(path.local("SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003run_PHYS_month*.nc"))))]
