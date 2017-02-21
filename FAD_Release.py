@@ -109,7 +109,8 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
         print("Month %s" % m)
         start = grid.U.time[0]
         end = grid.U.time[0]+(30*24*60*60)
-        print("Executing from %s until %s, should be %s steps" % (start, end, (end-start)/timestep))
+        print("Executing from %s until %s, should be %s steps" %
+              (datetime.fromtimestamp(start), datetime.fromtimestamp(end), (end-start)/timestep))
         fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
                        starttime=grid.U.time[0], endtime=grid.U.time[0]+(30*24*60*60), dt=timestep,
                        output_file=results_file, interval=timestep)
