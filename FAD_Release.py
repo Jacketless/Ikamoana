@@ -106,8 +106,8 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
 
     print("Starting Sim")
     for m in range(first_month_index, last_month_index):
-        grid.U.time_origin += shift
-        grid.V.time_origin += shift
+        grid.U.time += shift
+        grid.V.time += shift
         print("Month %s" % m)
         start = grid.U.time[0]
         end = grid.U.time[0]+(30*24*60*60)
@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
     if raijin_run:
         output_filename = '/short/e14/jsp561/' + args.output
-        shift = timedelta(days=365)
+        shift = timedelta(days=365)*10
     else:
         output_filename = args.output
         shift = 0
