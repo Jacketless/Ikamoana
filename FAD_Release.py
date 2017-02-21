@@ -92,7 +92,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
 
     class FAD(ParticleClass):
         deployed = Variable('deployed', dtype=np.float32, to_write=False)
-        active = Variable('active', dtype=np.float32, to_write=True)
+        active = Variable('active', dtype=np.int16, to_write=True)
 
     fadset = ParticleSet(grid, pclass=FAD, lon=lons, lat=lats)
     results_file = ParticleFile(output_file + '_trajectories', fadset)
@@ -109,6 +109,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
         print("Month %s" % m)
         start = grid.U.time[0]
         end = grid.U.time[0]+(30*24*60*60)
+        print("Grid timeorigin = %s" % grid.U.time_origin)
         print("Executing from %s until %s, should be %s steps" %
               (datetime.fromtimestamp(start), datetime.fromtimestamp(end), (end-start)/timestep))
         fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
