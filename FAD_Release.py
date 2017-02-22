@@ -8,13 +8,10 @@ from datetime import timedelta, datetime
 
 def delaystart(particle, grid, time, dt):
     if time > particle.deployed:
-        particle.active = 1
-        if time > particle.recovered:
-            particle.active = 2
-    if particle.beached == 1:
-        particle.active = 0
-
-
+        if particle.active < 3: #Not beached
+            particle.active = 1
+            if time > particle.recovered:
+                particle.active = 2
 
 
 def delayedAdvectionRK4(particle, grid, time, dt):
@@ -32,8 +29,10 @@ def delayedAdvectionRK4(particle, grid, time, dt):
 
 
 def KillFAD(particle):
-    print("FAD hit model bounds!")
-    particle.beached = 1
+    print("FAD hit model bounds at %s|%s!" % (particle.lon, particle.lat))
+    particle.active = 3
+    particle.lon = 170
+    particle.lat = -50
 
 
 def loadBRANgrid(Ufilenames, Vfilenames,
@@ -109,7 +108,6 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
         deployed = Variable('deployed', dtype=np.float32, to_write=False)
         active = Variable('active', dtype=np.float32, to_write=True)
         recovered = Variable('recovered', dtype=np.float32, to_write=True)
-        beached = Variable('beached', dtype=np.float32, to_write=False)
 
     fadset = ParticleSet(grid, pclass=FAD, lon=lons, lat=lats)
     results_file = ParticleFile(output_file + '_trajectories', fadset)
@@ -117,7 +115,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
     print("Setting deployment times for all particles")
     for f in range(len(fadset.particles)):
         fadset.particles[f].deployed = deploy_times[f]#-starttime#(deploy_times[f]-datetime.fromtimestamp(starttime+(22$
-        fadset.particles[f].active = fadset.particles[f].beached = -1
+        fadset.particles[f].active = -1
         fadset.particles[f].recovered = fadset.particle[f].deployed + (timedelta(days=30)*6).total_seconds()
         #print(fadset.particles[f].deployed)
         print(datetime.fromtimestamp(fadset.particles[f].deployed))
