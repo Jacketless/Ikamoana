@@ -7,6 +7,7 @@ from argparse import ArgumentParser
 import matplotlib.animation as animation
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
+from datetime import timedelta, datetime
 
 
 def getMFRegion(lon, lat):
@@ -47,9 +48,9 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
     pfile = Dataset(filename, 'r')
     lon = pfile.variables['lon']
     lat = pfile.variables['lat']
-    time = pfile.variables['time']
+    #time = pfile.variables['time']
     #z = pfile.variables['z']
-    #active = pfile.variables['active']
+    active = pfile.variables['active']
 
     if display is not 'none':
         title = pfile.variables[display]
@@ -152,9 +153,11 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
         # Offline calc contours still to do
         def animate(i):
             ax.cla()
-            #active_list = active[:, i] > 0
-            active_list = range(len(lon[:,i]))#indices
-
+            active_list = np.where(active[:, i] == 1)[0]
+            if len(active_list) < 1:
+                active_list = 0
+            #active_list = range(len(lon[:,i]))#indices
+           # if len(np.where(active_list)) > 1:
             if drawland:
                 m.drawcoastlines()
                 m.fillcontinents(color='forestgreen', lake_color='aqua')
@@ -175,8 +178,11 @@ def particleplotting(filename, psize, recordedvar, rcmap, backgroundfield, dimen
                              zorder=-1,ylim=[limits[2], limits[3]], cmap=cmap)
             plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
             if display is not 'none':
-                plt.suptitle("Cohort age %s months" % display)#"Cohort age = %s months" % title[0,i])
-                plt.title("Region %s" % mf_focus)
+                if display == 'time':
+                    plt.suptitle(datetime.fromtimestamp(title[0,i]))
+                else:
+                    plt.suptitle("Cohort age %s months" % display)#"Cohort age = %s months" % title[0,i])
+                    plt.title("Region %s" % mf_focus)
             return scat,
 
         if drawland:

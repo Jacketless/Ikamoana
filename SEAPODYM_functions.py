@@ -99,8 +99,8 @@ def Create_SEAPODYM_Taxis_Fields(dHdx, dHdy, start_age=4, taxis_scale=1):
             months += 1
         for x in range(dHdx.lon.size):
             for y in range(dHdx.lat.size):
-                Tx[t, y, x] = V_max(months) * dHdx.data[t, y, x] * taxis_scale / ((1 / 1000. / 1.852 / 60.) / math.cos(dHdx.lat[y]*math.pi/180))
-                Ty[t, y, x] = V_max(months) * dHdy.data[t, y, x] * taxis_scale / (1 / 1000. / 1.852 / 60.)
+                Tx[t, y, x] = V_max(months) * dHdx.data[t, y, x] * taxis_scale * (1000*1.852*60 * math.cos(dHdx.lat[y]*math.pi/180))# / ((1 / 1000. / 1.852 / 60.) / math.cos(dHdx.lat[y]*math.pi/180))
+                Ty[t, y, x] = V_max(months) * dHdy.data[t, y, x] * taxis_scale * (1000*1.852*60)#/ (1 / 1000. / 1.852 / 60.)
 
     return [Field('Tx', Tx, dHdx.lon, dHdx.lat, time=dHdx.time, interp_method='nearest', allow_time_extrapolation=True,
                   units=unit_converters('spherical')[0]),

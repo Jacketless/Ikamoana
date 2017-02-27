@@ -57,10 +57,12 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
                 fishset = ParticleSet.from_field(grid, size=individuals, pclass=SKJ, start_field=grid.Start)
             results_file = ParticleFile(output_file + '_results', fishset) if write_trajectories is True else None
             if output_density:
-                sim_time = np.linspace(grid.U.time[0], grid.U.time[0]+months*30*24*60*60, num=months)
+                sim_time = np.linspace(grid.U.time[0], grid.U.time[0]+(months+1)*30*24*60*60, num=months+1)
                 fish_density = Field('Density', np.full([grid.U.lon.size, grid.U.lat.size, sim_time.size],-1, dtype=np.float64),
                                      grid.U.lon, grid.U.lat, depth=grid.U.depth, transpose=True,
                                      time=sim_time)
+                #Calculate density before initial timestep
+                fish_density.data[np.where(month_steps == m)[0][0],:,:] = np.transpose(fishset.density())
         else:
             grid = Create_SEAPODYM_Grid(forcing_files=month_files, forcing_vars=variables, forcing_dims=dimensions,
                                         start_age=fish_age, diffusion_file=Kfile, diffusion_units=Kunits)
@@ -72,9 +74,6 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
 
         if write_grid:
             grid.write(output_file + '_month' + str(m) + '_')
-
-        if output_density:
-            fish_density.data[np.where(month_steps == m)[0][0],:,:] = np.transpose(fishset.density(relative=True))
 
         for p in fishset.particles:
             p.setAge(fish_age)
@@ -90,14 +89,24 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
         moveeast = fishset.Kernel(MoveEast)
         movewest = fishset.Kernel(MoveWest)
         print("Executing kernels...")
-        fishset.execute(age + combinedadvection + diffuse + move + landcheck + sampH, starttime=grid.U.time[0], endtime=grid.U.time[0]+30*24*60*60, dt=timestep,
+        fishset.execute(age + advect + taxis + diffuse + move + landcheck + sampH, starttime=grid.U.time[0], endtime=grid.U.time[0]+30*24*60*60, dt=timestep,
                         output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
         #fishset.execute(age + advect + taxis + diffuse + move + landcheck + sampH, starttime=grid.U.time[0], endtime=grid.U.time[0]+30*24*60*60, dt=timestep,
         #                output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
         #fishset.execute(movewest + landcheck, starttime=grid.time[0], endtime=grid.time[0]+30*24*60*60, dt=timestep,
          #               output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
+        # Here we are calculating density AFTER particle execution each timestep
         if output_density:
+            fish_density.data[np.where(month_steps == m)[0][0] + 1,:,:] = np.transpose(fishset.density())
             fish_density.write(output_file)
+
+    params = {"forcingU": Ufilestem, "forcingV": Vfilestem, "forcingH":Hfilestem, "startD":startD,
+             "Uname":Uname, "Vname":Vname, "Hname":Hname, "Dname":Dname,
+             "dimLon":dimLon, "dimLat":dimLat,"dimTime":dimTime,
+             "Kfile":Kfilestem, "individuals":individuals, "timestep":timestep, "month_steps":months,
+             "start_age":start_age, "start_month":start_month, "start_year":start_year, "trajectories_output":write_trajectories,
+             "output_density":output_density, "output_file":output_file, "random_seed":random_seed, "mode":mode}
+    write_parameter_file(params, output_file)
 
 
 def getForcingFilename(stem, month_step, start_year=2003, simple=False):
@@ -158,6 +167,12 @@ def Copy_Fish_Particle(old_p, new_p, pclass):
         #print("Copying %s, oldvalue = %s, newvalue = %s" % (v.name, getattr(old_p, v.name), getattr(new_p, v.name)))
         setattr(new_p, v.name, getattr(old_p, v.name))
 
+def write_parameter_file(params, file_stem):
+    param_file = open(file_stem+"_parameters.txt", "w")
+    for p, val in params.items():
+        param_file.write("%s %s\n" % (p, val))
+    param_file.close()
+
 
 if __name__ == "__main__":
     p = ArgumentParser(description="""
@@ -168,7 +183,7 @@ if __name__ == "__main__":
                    help='Number of particles to advect')
     p.add_argument('-r', '--run', default='2003')
     p.add_argument('-f', '--files', default=['SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003run_PHYS_month',
-                                             'SEAPODYM_Forcing_Data/latest/PHYSICAL/2003run_PHYS_month',
+                                             'SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003run_PHYS_month',
                                              'SEAPODYM_Forcing_Data/Latest/HABITAT/INTERIM-NEMO-PISCES_skipjack_habitat_index_'],
                    help='List of NetCDF files to load')
     p.add_argument('-v', '--variables', default=['U', 'V', 'H'],
