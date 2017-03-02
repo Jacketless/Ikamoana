@@ -146,18 +146,20 @@ def GradientRK4_C(particle, grid, time, dt):
 
 def TaxisRK4(particle, grid, time, dt):
     if particle.active == 1:
+        f_lat = dt / 1000. / 1.852 / 60.
+        f_lon = f_lat / math.cos(particle.lat*math.pi/180)
         u1 = grid.Tx[time, particle.lon, particle.lat]
         v1 = grid.Ty[time, particle.lon, particle.lat]
-        lon1, lat1 = (particle.lon + u1*.5*dt, particle.lat + v1*.5*dt)
+        lon1, lat1 = (particle.lon + u1*.5*f_lon, particle.lat + v1*.5*f_lat)
         u2, v2 = (grid.Tx[time + .5 * dt, lon1, lat1], grid.Ty[time + .5 * dt, lon1, lat1])
-        lon2, lat2 = (particle.lon + u2*.5*dt, particle.lat + v2*.5*dt)
+        lon2, lat2 = (particle.lon + u2*.5*f_lon, particle.lat + v2*.5*f_lat)
         u3, v3 = (grid.Tx[time + .5 * dt, lon2, lat2], grid.Ty[time + .5 * dt, lon2, lat2])
-        lon3, lat3 = (particle.lon + u3*dt, particle.lat + v3*dt)
+        lon3, lat3 = (particle.lon + u3*f_lon, particle.lat + v3*f_lat)
         u4, v4 = (grid.Tx[time + dt, lon3, lat3], grid.Ty[time + dt, lon3, lat3])
         Vx = (u1 + 2*u2 + 2*u3 + u4) / 6.
         Vy = (v1 + 2*v2 + 2*v3 + v4) / 6.
-        particle.Vx = Vx * dt
-        particle.Vy = Vy * dt
+        particle.Vx = Vx * f_lat
+        particle.Vy = Vy * f_lon
 
 
 def CurrentAndTaxisRK4(particle, grid, time, dt):

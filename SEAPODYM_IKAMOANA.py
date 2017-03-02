@@ -234,7 +234,7 @@ if __name__ == "__main__":
 
     if args.run == '1997':
         args.files = ['SEAPODYM_Forcing_Data/Latest/PHYSICAL/1997run_PHYS_month',
-                       'SEAPODYM_Forcing_Data/latest/PHYSICAL/1997run_PHYS_month',
+                       'SEAPODYM_Forcing_Data/Latest/PHYSICAL/1997run_PHYS_month',
                        'SEAPODYM_Forcing_Data/Latest/HABITAT/INTERIM-NEMO-PISCES_skipjack_habitat_index_']
         args.start_year = 1997
         args.startfield = 'SEAPODYM_Forcing_Data/Latest/DENSITY/INTERIM-NEMO-PISCES_skipjack_cohort_19961015_density_M0_19970115.nc'
