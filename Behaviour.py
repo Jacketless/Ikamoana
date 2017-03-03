@@ -19,17 +19,17 @@ def AgeParticle(particle, grid, time, dt):
     particle.age += dt
     if (particle.age - (particle.monthly_age*30*24*60*60)) > (30*24*60*60):
         particle.monthly_age += 1
-        a=2.225841100458143# 0.7343607395421234 old parameters
-        b=0.8348850216641774# 0.5006692114850767 old parameters
-        lengths = [3.00, 4.51, 6.02, 11.65, 16.91, 21.83, 26.43, 30.72, 34.73, 38.49, 41.99, 45.27,
-                   48.33, 51.19, 53.86, 56.36, 58.70, 60.88, 62.92, 64.83, 66.61, 68.27, 69.83, 71.28,
-                   72.64, 73.91, 75.10, 76.21, 77.25, 78.22, 79.12, 79.97, 80.76, 81.50, 82.19, 82.83,
-                   83.44, 84.00, 84.53, 85.02, 85.48, 85.91, 86.31, 86.69, 87.04, 87.37, 87.68, 87.96,
-                   88.23, 88.48, 88.71, 88.93, 89.14, 89.33, 89.51, 89.67, 89.83, 89.97, 90.11, 90.24,
-                   90.36, 90.47, 90.57, 90.67, 91.16]
-        L = lengths[(particle.monthly_age-1)]/100  #L = GetLengthFromAge(monthly_age)
-        vmax = a * math.pow(L, b)
-        particle.Vmax = vmax
+        # a=2.225841100458143# 0.7343607395421234 old parameters
+        # b=0.8348850216641774# 0.5006692114850767 old parameters
+        # lengths = [3.00, 4.51, 6.02, 11.65, 16.91, 21.83, 26.43, 30.72, 34.73, 38.49, 41.99, 45.27,
+        #            48.33, 51.19, 53.86, 56.36, 58.70, 60.88, 62.92, 64.83, 66.61, 68.27, 69.83, 71.28,
+        #            72.64, 73.91, 75.10, 76.21, 77.25, 78.22, 79.12, 79.97, 80.76, 81.50, 82.19, 82.83,
+        #            83.44, 84.00, 84.53, 85.02, 85.48, 85.91, 86.31, 86.69, 87.04, 87.37, 87.68, 87.96,
+        #            88.23, 88.48, 88.71, 88.93, 89.14, 89.33, 89.51, 89.67, 89.83, 89.97, 90.11, 90.24,
+        #            90.36, 90.47, 90.57, 90.67, 91.16]
+        # L = lengths[(particle.monthly_age-1)]/100  #L = GetLengthFromAge(monthly_age)
+        # vmax = a * math.pow(L, b)
+        # particle.Vmax = vmax
         # MPmax=0.3
         # MPexp=0.1008314958945224
         # MSmax=0.006109001382111822
@@ -272,16 +272,18 @@ def RandomWalkDiffusion(particle, grid, time, dt):
 def UndoMove(particle):
     print("UndoMove triggered! Moving particle")
     print("from: %s | %s" % (particle.lon, particle.lat))
+    temp_lon = particle.lon
+    temp_lat = particle.lat
     particle.lon -= particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
     particle.lat -= particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
     particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
     #particle.lon = 200
     #particle.lat = 0
     print("to:   %s | %s" % (particle.lon, particle.lat))
-
-
-##def RedoMove(particle):
-
+    if particle.lon == temp_lon and paticle.lat == temp_lat:
+        print("Positions are the same! Using particle saved previous positions...")
+        particle.lon = particle.prev_lon
+        particle.lat = particle.prev_lat
 
 
 def MoveOffLand(particle, grid, time, dt):
@@ -329,6 +331,8 @@ def Move(particle, grid, time, dt):
         #to_lon = to_lat / math.cos(particle.lat*math.pi/180)
         #print("Ax=%s Dx=%s Cx=%s Vx=%s dHdx=%s at time %s" % (particle.Ax , particle.Dx, particle.Cx, particle.Vx, particle.dHdx, time))
         #print("Ay=%s Dy=%s Cy=%s Vy=%s dHdy=%s at time %s" % (particle.Ay , particle.Dy, particle.Cy, particle.Vy, particle.dHdy, time))
+        particle.prev_lon = particle.lon
+        particle.prev_lat = particle.lat
         particle.lon += particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
         particle.lat += particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
 
@@ -338,11 +342,11 @@ def MoveEast(particle, grid, time, dt):
     if particle.active == 1:
         to_lat = 1 / 1000. / 1.852 / 60.
         to_lon = to_lat / math.cos(particle.lat*math.pi/180)
-        particle.lon += particle.Vmax * dt * to_lon
+        particle.lon += 3 * dt * to_lon
 
 
 def MoveWest(particle, grid, time, dt):
     if particle.active == 1:
         to_lat = 1 / 1000. / 1.852 / 60.
         to_lon = to_lat / math.cos(particle.lat*math.pi/180)
-        particle.lon -= particle.Vmax * dt * to_lon
+        particle.lon -= 3 * dt * to_lon

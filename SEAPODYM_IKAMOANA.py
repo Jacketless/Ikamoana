@@ -129,8 +129,8 @@ def Create_Particle_Class(type=JITParticle):
         active = Variable("active", to_write=False)
         monthly_age = Variable("monthly_age", dtype=np.int32)
         age = Variable('age', to_write=False)
-        Vmax = Variable('Vmax', to_write=False, dtype=np.float32)
-        Dv_max = Variable('Dv_max', to_write=False)
+        #Vmax = Variable('Vmax', to_write=False, dtype=np.float32)
+        #Dv_max = Variable('Dv_max', to_write=False)
         fish = Variable('fish', to_write=False)
         H = Variable('H', to_write=True, dtype=np.float32)
         dHdx = Variable('dHdx', to_write=True, dtype=np.float32)
@@ -144,6 +144,8 @@ def Create_Particle_Class(type=JITParticle):
         Ax = Variable('Ax', to_write=True, dtype=np.float32)
         Ay = Variable('Ay', to_write=True, dtype=np.float32)
         taxis_scale = Variable('taxis_scale', to_write=False)
+        prev_lon = Variable('prev_lon', to_write=False)
+        prev_lat = Variable('prev_lat', to_write=False)
 
         def __init__(self, *args, **kwargs):
             """Custom initialisation function which calls the base
@@ -158,7 +160,7 @@ def Create_Particle_Class(type=JITParticle):
         def setAge(self, months):
             self.age = months*30*24*60*60
             self.monthly_age = int(self.age/(30*24*60*60))
-            self.Vmax = V_max(self.monthly_age)
+            #self.Vmax = V_max(self.monthly_age)
 
     return SEAPODYM_SKJ
 
