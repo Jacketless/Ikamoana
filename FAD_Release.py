@@ -8,14 +8,20 @@ from datetime import timedelta, datetime
 
 def delaystart(particle, grid, time, dt):
     if time > particle.deployed:
-        if particle.active < 3: #Not beached
-            particle.active = 1
-            if time > particle.recovered:
-                particle.active = 2
+        if particle.active > -1: # Has not beached or been recovered
+            particle.active += 1
+        if time > particle.deployed + grid.FAD_duration:
+            particle.active = -1
+        if particle.active < -1:
+            particle.active -= 1
+        # if particle.active < 3: #Not beached
+        #     particle.active = 1
+        #     if time > particle.recovered:
+        #         particle.active = 2
 
 
 def delayedAdvectionRK4(particle, grid, time, dt):
-    if particle.active == 1:
+    if particle.active > 0:
         u1 = grid.U[time, particle.lon, particle.lat]
         v1 = grid.V[time, particle.lon, particle.lat]
         lon1, lat1 = (particle.lon + u1*.5*dt, particle.lat + v1*.5*dt)
@@ -30,7 +36,7 @@ def delayedAdvectionRK4(particle, grid, time, dt):
 
 def KillFAD(particle):
     print("FAD hit model bounds at %s|%s!" % (particle.lon, particle.lat))
-    particle.active = 3
+    particle.active = -2
     particle.lon = 170
     particle.lat = -50
 
@@ -52,9 +58,8 @@ def loadBRANgrid(Ufilenames, Vfilenames,
 def advanceGrid1Month(grid, gridnew):
     for v in grid.fields:
             vnew = getattr(gridnew, v.name)
-            # Very roughly, we will kick out same amount of days' data as the new month,
-            # and add on this month (which will range from 28-31 days data)
-            days = len(vnew.time)
+            # Very roughly, we will kick out 30 days and load the new month (28-31 days)
+            days = 30# len(vnew.time)
             if np.min(vnew.time) > v.time[-1]:  # forward in time, so appending at end
                 v.data = np.concatenate((v.data[days:, :, :], vnew.data[:, :, :]), 0)
                 v.time = np.concatenate((v.time[days:], vnew.time))
@@ -92,7 +97,9 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
     print("Loading first grid snapshot")
     grid = loadBRANgrid(filenames[0][first_month_index:(first_month_index+3)],
                         filenames[1][first_month_index:(first_month_index+3)],
-                        variables, dimensions, shift)
+                        variables, dimensions)
+
+    grid.add_constant("FAD_duration", 6*30*24*60*60)
     #grid.write('BRAN_test')
 
     #shift = (datetime(1992,1,1) - datetime(1970,1,1)).total_seconds()
@@ -107,18 +114,18 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
     class FAD(ParticleClass):
         deployed = Variable('deployed', dtype=np.float32, to_write=False)
         active = Variable('active', dtype=np.float32, to_write=True)
-        recovered = Variable('recovered', dtype=np.float32, to_write=True)
+        #recovered = Variable('recovered', dtype=np.float32, to_write=True)
 
     fadset = ParticleSet(grid, pclass=FAD, lon=lons, lat=lats)
     results_file = ParticleFile(output_file + '_trajectories', fadset)
 
     print("Setting deployment times for all particles")
     for f in range(len(fadset.particles)):
-        fadset.particles[f].deployed = deploy_times[f]#-starttime#(deploy_times[f]-datetime.fromtimestamp(starttime+(22$
-        fadset.particles[f].active = -1
-        fadset.particles[f].recovered = fadset.particle[f].deployed + (timedelta(days=30)*6).total_seconds()
+        fadset.particles[f].deployed = deploy_times[f] + shift#-starttime#(deploy_times[f]-datetime.fromtimestamp(starttime+(22$
+        fadset.particles[f].active = 0
+        #fadset.particles[f].recovered = fadset.particles[f].deployed + shift + (timedelta(days=30)*6).total_seconds()
         #print(fadset.particles[f].deployed)
-        print(datetime.fromtimestamp(fadset.particles[f].deployed))
+        #print(datetime.fromtimestamp(fadset.particles[f].deployed))
 
     print("Starting Sim")
     for m in range(first_month_index, last_month_index):
@@ -131,7 +138,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
         fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
                        starttime=grid.U.time[0], endtime=grid.U.time[0]+(30*24*60*60), dt=timestep,
                        output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: KillFAD})
-        advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions, shift))
+        advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions))
 
 
 if __name__ == "__main__":
@@ -143,7 +150,7 @@ if __name__ == "__main__":
      #              help='List of NetCDF files to load')
     p.add_argument('-f', '--files', default=['/Volumes/4TB SAMSUNG/Ocean_Model_Data/OFAM_month1/ocean_u_1993_01.TropPac.nc', '/Volumes/4TB SAMSUNG/Ocean_Model_Data/OFAM_month1/ocean_v_1993_01.TropPac.nc'],
                    help='List of NetCDF files to load')
-    p.add_argument('-de', '--deployment_file', default="TUBS FAD Deployments.txt",
+    p.add_argument('-de', '--deployment_file', default="Clean_TUBs_FAD_Deployments.txt",
                    help='List of NetCDF files to load')
     p.add_argument('-v', '--variables', default=['U', 'V'],
                    help='List of field variables to extract, using PARCELS naming convention')
