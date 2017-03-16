@@ -70,6 +70,7 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
             fishset = ParticleSet.from_list(grid, pclass=SKJ, lon=[200]*individuals, lat=[0]*individuals)
             for p in range(len(fishset.particles)):
                 Copy_Fish_Particle(oldfishset.particles[p], fishset.particles[p], SKJ)
+                fishset.particles[p].In_Loop = 0
 
 
         if write_grid:
@@ -89,7 +90,7 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
         moveeast = fishset.Kernel(MoveEast)
         movewest = fishset.Kernel(MoveWest)
         print("Executing kernels...")
-        end_time = 15*24*30*30 if m == start_month else 30*24*60*60
+        end_time = 15*24*60*60 if m == start_month else 30*24*60*60
         fishset.execute(age + advect + taxis + diffuse + move + landcheck + sampH, starttime=grid.U.time[0], endtime=grid.U.time[0]+end_time, dt=timestep,
                         output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
         #fishset.execute(age + advect + taxis + diffuse + move + landcheck + sampH, starttime=grid.U.time[0], endtime=grid.U.time[0]+30*24*60*60, dt=timestep,
@@ -143,6 +144,7 @@ def Create_Particle_Class(type=JITParticle):
         Vy = Variable('Vy', to_write=True, dtype=np.float32)
         Ax = Variable('Ax', to_write=True, dtype=np.float32)
         Ay = Variable('Ay', to_write=True, dtype=np.float32)
+        In_Loop = Variable('In_Loop', to_write=True, dtype=np.float32)
         taxis_scale = Variable('taxis_scale', to_write=False)
         prev_lon = Variable('prev_lon', to_write=False)
         prev_lat = Variable('prev_lat', to_write=False)
@@ -156,6 +158,7 @@ def Create_Particle_Class(type=JITParticle):
             self.H = self.Dx = self.Dy = self.Cx = self.Cy = self.Vx = self.Vy = self.Ax = self.Ay = 0.0
             self.taxis_scale = 1
             self.active = 1
+            self.In_Loop = 0
 
         def setAge(self, months):
             self.age = months*30*24*60*60
