@@ -100,6 +100,14 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
                         variables, dimensions)
 
     grid.add_constant("FAD_duration", 6*30*24*60*60)
+    sim_time = np.linspace(grid.U.time[0], grid.U.time[0]+(last_month_index - first_month_index)*30*24*60*60,
+                           num=(last_month_index - first_month_index))
+    print("sim_time = %s" % sim_time)
+    FAD_Density = Field('Density', np.full([grid.U.lon.size, grid.U.lat.size, sim_time.size],-1, dtype=np.float64),
+                        grid.U.lon, grid.U.lat, depth=grid.U.depth, transpose=True,
+                        time=sim_time)
+    print("density shape")
+    print(np.shape(FAD_Density.data))
     #grid.write('BRAN_test')
 
     #shift = (datetime(1992,1,1) - datetime(1970,1,1)).total_seconds()
@@ -138,6 +146,8 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
         fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
                        starttime=grid.U.time[0], endtime=grid.U.time[0]+(30*24*60*60), dt=timestep,
                        output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: KillFAD})
+        print("density index = %s" % range(first_month_index, last_month_index)==m)
+        #FAD_Density.data[np.where(range(first_month_index, last_month_index) == m)[0][0],:,:] = np.transpose(fadset.density())
         advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions))
 
 
