@@ -82,7 +82,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
     T = (year_end-year_start)*12 - month_start + month_end + 1
 
     print("Earliest time in forcing file list: %s" % datetime.fromtimestamp(first_file_date))
-    print("Earliest deployment time in deployment file (index=%s): %s" % (np.min(deploy_times), first_time))
+    print("Earliest deployment time in deployment file (index=%s): %s" % (np.where(deploy_times == np.min(deploy_times)), first_time))
     first_month_index = first_time - datetime.fromtimestamp(first_file_date)
     last_month_index = end_time - datetime.fromtimestamp(first_file_date)
 
@@ -96,7 +96,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
     print("Loading first grid snapshot")
     grid = loadBRANgrid(filenames[0][first_month_index:(first_month_index+3)],
                         filenames[1][first_month_index:(first_month_index+3)],
-                        variables, dimensions)
+                        variables, dimensions, shift)
 
     grid.add_constant("FAD_duration", 6*30*24*60*60)
     #grid.write('BRAN_test')
@@ -120,12 +120,12 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
 
     print("Setting deployment times for all particles")
     for f in range(len(fadset.particles)):
-        fadset.particles[f].deployed = deploy_times[f] + shift#-starttime#(deploy_times[f]-datetime.fromtimestamp(starttime+(22$
+        fadset.particles[f].deployed = deploy_times[f]# + shift#-starttime#(deploy_times[f]-datetime.fromtimestamp(starttime+(22$
         fadset.particles[f].active = 0
         #fadset.particles[f].recovered = fadset.particles[f].deployed + shift + (timedelta(days=30)*6).total_seconds()
         #print(fadset.particles[f].deployed)
         #print(datetime.fromtimestamp(fadset.particles[f].deployed))
-    print("Deployment time of first FAD in database: %s" % fadset.particles[0].deployed)
+    print("Deployment time of first FAD in database: %s" % datetime.fromtimestamp(fadset.particles[0].deployed))
 
     print("Starting Sim")
     for m in range(first_month_index, last_month_index):
@@ -144,7 +144,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
         #                time=end)
         #FAD_Density.data[0,:,:] = np.transpose(fadset.density())
         #FAD_Density.write(output_file)
-        advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions))
+        advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions, shift))
 
 
 if __name__ == "__main__":
