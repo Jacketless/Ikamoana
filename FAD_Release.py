@@ -59,7 +59,7 @@ def advanceGrid1Month(grid, gridnew):
     for v in grid.fields:
             vnew = getattr(gridnew, v.name)
             # Very roughly, we will kick out 30 days and load the new month (28-31 days)
-            days = 31# len(vnew.time)
+            days = len(vnew.time)
             if np.min(vnew.time) > v.time[-1]:  # forward in time, so appending at end
                 v.data = np.concatenate((v.data[days:, :, :], vnew.data[:, :, :]), 0)
                 v.time = np.concatenate((v.time[days:], vnew.time))
@@ -68,6 +68,7 @@ def advanceGrid1Month(grid, gridnew):
                 v.time = np.concatenate((vnew.time, v.time[:-days]))
             else:
                 raise RuntimeError("Time of gridnew in grid.advancetime() overlaps with times in old grid")
+    return days
 
 
 def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals=100, deploy_times=None, timestep=21600, time=30,
@@ -128,10 +129,11 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
     print("Deployment time of first FAD in database: %s" % datetime.fromtimestamp(fadset.particles[0].deployed))
 
     print("Starting Sim")
+    days = 31
     for m in range(first_month_index, last_month_index):
         print("Month %s" % m)
         start = grid.U.time[0]
-        end = grid.U.time[0]+(31*24*60*60)
+        end = grid.U.time[0]+(days*24*60*60)
         print("Grid timeorigin = %s" % grid.U.time_origin)
         print("Executing from %s until %s, should be %s steps" %
               (datetime.fromtimestamp(start), datetime.fromtimestamp(end), (end-start)/timestep))
@@ -144,7 +146,7 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
         #                time=end)
         #FAD_Density.data[0,:,:] = np.transpose(fadset.density())
         #FAD_Density.write(output_file)
-        advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions, shift))
+        days = advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions, shift))
         print("grid.data size: %s-%s-%s" % (np.shape(grid.U.data)))
 
 
