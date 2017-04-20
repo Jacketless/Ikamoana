@@ -280,7 +280,7 @@ def UndoMove(particle):
     #particle.lon = 200
     #particle.lat = 0
     print("to:   %s | %s" % (particle.lon, particle.lat))
-    if particle.lon == temp_lon and paticle.lat == temp_lat:
+    if particle.lon == temp_lon and particle.lat == temp_lat:
         print("Positions are the same! Using particle saved previous positions...")
         particle.lon = particle.prev_lon
         particle.lat = particle.prev_lat

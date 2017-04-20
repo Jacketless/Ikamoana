@@ -13,7 +13,7 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
               Kfilestem=None, Kunits='m2_per_s',
               individuals=100, timestep=172800, months=3, start_age=4, start_month=1, start_year=2003, start_point=None,
               output_density=False, output_file="SIMPODYM", write_grid=False, write_trajectories=True,
-              random_seed=None, mode='jit', verbose=True):
+              random_seed=None, mode='jit', verbose=True, filestem_simple={'H': True, 'U': False, 'V': False}):
     if random_seed is None:
         np.random.RandomState()
         random_seed = np.random.get_state()
@@ -34,8 +34,7 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
         print("Starting Month %s" % m)
         month_files = {}
         for v in filenames.keys():
-            simple_style = False if v == 'H' else True
-            month_files.update({v: getForcingFilename(filenames[v], m, start_year=start_year, simple=simple_style)})
+            month_files.update({v: getForcingFilename(filenames[v], m, start_year=start_year, simple=filestem_simple[v])})
         if Kfilestem is not None:
             Kfile = (getForcingFilename(Kfilestem, m, start_year=start_year))
         else:
@@ -237,6 +236,10 @@ if __name__ == "__main__":
         args.k_file_stem = None
     args.write_particles = False if args.write_particles == 'False' else True
 
+
+    # Dictionary for the timestep naming convention of files
+    file_naming = {'H': True, 'U': False, 'V': False}
+    
     if args.run == '1997':
         args.files = ['SEAPODYM_Forcing_Data/Latest/PHYSICAL/1997run_PHYS_month',
                        'SEAPODYM_Forcing_Data/Latest/PHYSICAL/1997run_PHYS_month',
@@ -244,6 +247,14 @@ if __name__ == "__main__":
         args.start_year = 1997
         args.startfield = 'SEAPODYM_Forcing_Data/Latest/DENSITY/INTERIM-NEMO-PISCES_skipjack_cohort_19961015_density_M0_19970115.nc'
         args.startfield_varname = 'skipjack_cohort_19961015_density_M0'
+    if args.run == 'test':
+        args.files = ['TestCase/IdealTestCasePhysical_Month',
+                       'TestCase/IdealTestCasePhysical_Month',
+                       'TestCase/IdealTestCaseHabitat_Month']
+        args.start_year = 2000
+        args.startfield = 'TestCase/evenstartdist.nc'
+        args.startfield_varname = 'even_dist'
+        file_naming = {'H': True, 'U': True, 'V': True}
 
     SIMPLEDYM_SIM(Ufilestem=args.files[0], Vfilestem=args.files[1], Hfilestem=args.files[2], startD=args.startfield,
                   Uname=args.netcdf_vars[0], Vname=args.netcdf_vars[1], Hname=args.netcdf_vars[2], Dname=args.startfield_varname,
@@ -252,4 +263,4 @@ if __name__ == "__main__":
                   individuals=args.particles, timestep=args.timestep, months=args.time,
                   start_age=args.start_age, start_month=args.start_month, start_year=args.start_year, start_point=args.start_point,
                   output_density=args.write_density, output_file=args.output, write_trajectories=args.write_particles,
-                  write_grid=args.write_grid, mode=args.mode)
+                  write_grid=args.write_grid, mode=args.mode, filestem_simple=file_naming)
