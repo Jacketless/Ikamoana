@@ -236,10 +236,9 @@ if __name__ == "__main__":
         args.k_file_stem = None
     args.write_particles = False if args.write_particles == 'False' else True
 
-
     # Dictionary for the timestep naming convention of files
     file_naming = {'H': True, 'U': False, 'V': False}
-    
+
     if args.run == '1997':
         args.files = ['SEAPODYM_Forcing_Data/Latest/PHYSICAL/1997run_PHYS_month',
                        'SEAPODYM_Forcing_Data/Latest/PHYSICAL/1997run_PHYS_month',
@@ -252,7 +251,7 @@ if __name__ == "__main__":
                        'TestCase/IdealTestCasePhysical_Month',
                        'TestCase/IdealTestCaseHabitat_Month']
         args.start_year = 2000
-        args.startfield = 'TestCase/evenstartdist.nc'
+        args.startfield = 'TestCase/EvenStartDist.nc'
         args.startfield_varname = 'even_dist'
         file_naming = {'H': True, 'U': True, 'V': True}
 
