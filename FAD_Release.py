@@ -26,13 +26,18 @@ def delayedAdvectionRK4(particle, grid, time, dt):
         u3, v3 = (grid.U[time + .5 * dt, lon2, lat2], grid.V[time + .5 * dt, lon2, lat2])
         lon3, lat3 = (particle.lon + u3*dt, particle.lat + v3*dt)
         u4, v4 = (grid.U[time + dt, lon3, lat3], grid.V[time + dt, lon3, lat3])
+        particle.prev_lon = particle.lon
+        particle.prev_lat = particle.lat
         particle.lon += (u1 + 2*u2 + 2*u3 + u4) / 6. * dt
         particle.lat += (v1 + 2*v2 + 2*v3 + v4) / 6. * dt
 
 
 def KillFAD(particle):
-    print("FAD hit model bounds at %s|%s!" % (particle.lon, particle.lat))
-    particle.active = -1 * particle.active
+    if particle.active > 0:
+        print("FAD hit model bounds at %s|%s!" % (particle.lon, particle.lat))
+        particle.active = -1 * particle.active
+        particle.lon = particle.prev_lon
+        particle.lat = particle.prev_lat
 
 
 def loadBRANgrid(Ufilenames, Vfilenames,
@@ -108,6 +113,8 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
     class FAD(ParticleClass):
         deployed = Variable('deployed', dtype=np.float32, to_write=False)
         active = Variable('active', dtype=np.float32, to_write=True)
+        prev_lon = Variable('prev_lon', dtype=np.float32, to_write=False)
+        prev_lat = Variable('prev_lat', dtype=np.float32, to_write=False)
         #recovered = Variable('recovered', dtype=np.float32, to_write=True)
 
     fadset = ParticleSet(grid, pclass=FAD, lon=lons, lat=lats)
