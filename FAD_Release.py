@@ -14,10 +14,6 @@ def delaystart(particle, grid, time, dt):
             particle.active = -1
         if particle.active < -1:
             particle.active -= 1
-        # if particle.active < 3: #Not beached
-        #     particle.active = 1
-        #     if time > particle.recovered:
-        #         particle.active = 2
 
 
 def delayedAdvectionRK4(particle, grid, time, dt):
@@ -36,9 +32,7 @@ def delayedAdvectionRK4(particle, grid, time, dt):
 
 def KillFAD(particle):
     print("FAD hit model bounds at %s|%s!" % (particle.lon, particle.lat))
-    particle.active = -2
-    particle.lon = 170
-    particle.lat = -50
+    particle.active = -1 * particle.active
 
 
 def loadBRANgrid(Ufilenames, Vfilenames,
@@ -159,7 +153,7 @@ if __name__ == "__main__":
      #              help='List of NetCDF files to load')
     p.add_argument('-f', '--files', default=['/Volumes/4TB SAMSUNG/Ocean_Model_Data/OFAM_month1/ocean_u_1993_01.TropPac.nc', '/Volumes/4TB SAMSUNG/Ocean_Model_Data/OFAM_month1/ocean_v_1993_01.TropPac.nc'],
                    help='List of NetCDF files to load')
-    p.add_argument('-de', '--deployment_file', default="Clean_TUBs_FAD_Deployments.txt",
+    p.add_argument('-de', '--deployment_file', default="TUBS_FAD_Deployments_BRAN_TimeOrigin.txt",
                    help='List of NetCDF files to load')
     p.add_argument('-v', '--variables', default=['U', 'V'],
                    help='List of field variables to extract, using PARCELS naming convention')
@@ -191,8 +185,10 @@ if __name__ == "__main__":
 
     if raijin_run:
         output_filename = '/short/e14/jsp561/' + args.output
-        shift = timedelta(days=365)*9
-        shift = shift.total_seconds()
+        shift = 0
+        # Shifts to match BRAN time origin should no longer be required
+        #shift = timedelta(days=365)*9
+        #shift = shift.total_seconds()
     else:
         output_filename = args.output
         shift = 0
