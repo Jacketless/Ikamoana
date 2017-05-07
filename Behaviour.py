@@ -313,7 +313,7 @@ def MoveOffLand(particle, grid, time, dt):
             #print("attempting move to %s|%s" % (particle.lon, particle.lat))
             #print("onland now = %s" % onland)
             count += 1
-            if count > 50:
+            if count > 500:
                 particle.lon -= particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
                 particle.lat -= particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
                 particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
