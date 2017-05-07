@@ -41,7 +41,7 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
             Kfile = None
         if m == start_month:
             grid = Create_SEAPODYM_Grid(forcing_files=month_files, forcing_vars=variables, forcing_dims=dimensions,
-                                        startD=startD, start_age=fish_age,
+                                        startD=startD, start_age=fish_age, verbose=verbose,
                                         diffusion_file=Kfile, diffusion_units=Kunits,
                                         startD_dims={'lon': 'longitude', 'lat': 'latitude', 'time': 'time', 'data': Dname})
             if verbose:
@@ -64,7 +64,7 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
                 fish_density.data[np.where(month_steps == m)[0][0],:,:] = np.transpose(fishset.density())
         else:
             grid = Create_SEAPODYM_Grid(forcing_files=month_files, forcing_vars=variables, forcing_dims=dimensions,
-                                        start_age=fish_age, diffusion_file=Kfile, diffusion_units=Kunits)
+                                        start_age=fish_age, diffusion_file=Kfile, diffusion_units=Kunits, verbose=verbose)
             oldfishset = fishset
             fishset = ParticleSet.from_list(grid, pclass=SKJ, lon=[200]*individuals, lat=[0]*individuals)
             for p in range(len(fishset.particles)):
@@ -227,6 +227,8 @@ if __name__ == "__main__":
                    help='Starting time of the simulation, in months, (defaults to month 1)')
     p.add_argument('-sy', '--start_year', type=int, default=2003,
                    help='Starting year of the simulation (defaults to 2003)')
+    p.add_argument('-vb', '--verbose', type=bool, default=False,
+                   help='Boolean for verbose print statements')
     args = p.parse_args()
     if args.startfield == "None":
         args.startfield = None
@@ -235,6 +237,9 @@ if __name__ == "__main__":
     if args.k_file_stem == "None":
         args.k_file_stem = None
     args.write_particles = False if args.write_particles == 'False' else True
+
+    if args.verbose != False:
+        args.verbose = True
 
     # Dictionary for the timestep naming convention of files
     file_naming = {'H': True, 'U': False, 'V': False}
@@ -262,4 +267,4 @@ if __name__ == "__main__":
                   individuals=args.particles, timestep=args.timestep, months=args.time,
                   start_age=args.start_age, start_month=args.start_month, start_year=args.start_year, start_point=args.start_point,
                   output_density=args.write_density, output_file=args.output, write_trajectories=args.write_particles,
-                  write_grid=args.write_grid, mode=args.mode, filestem_simple=file_naming)
+                  write_grid=args.write_grid, mode=args.mode, filestem_simple=file_naming, verbose=args.verbose)
