@@ -70,9 +70,9 @@ def getPopFromDensityField(grid, density_field='Start'):
     return total_fish
 
 
-def Create_Landmask(grid):
-    def isocean(p, lim=1e5):
-        return 1 if p < lim else 0
+def Create_Landmask(grid, lim=1e-5):
+    def isocean(p, lim):
+        return 1 if p > lim else 0
 
     nx = grid.H.lon.size
     ny = grid.H.lat.size
@@ -80,7 +80,7 @@ def Create_Landmask(grid):
     pbar = ProgressBar()
     for i in pbar(range(nx)):
         for j in range(1, ny-1):
-            if not isocean(grid.H.data[0, j, i]):  # For each land point
+            if not isocean(grid.H.data[0, j, i],lim):  # For each land point
                 mask[i,j] = 1
 
     Mask = Field('LandMask', mask, grid.H.lon, grid.H.lat, transpose=True)
@@ -149,8 +149,8 @@ def Create_SEAPODYM_Grid(forcing_files, startD=None, startD_dims=None,
         startD_dims = forcing_dims
     if verbose:
         print("Creating Grid\nLoading files:")
-    for f in forcing_files.values():
-        print(f)
+        for f in forcing_files.values():
+            print(f)
     grid = Grid.from_netcdf(filenames=forcing_files, variables=forcing_vars, dimensions=forcing_dims,
                             vmin=-200, vmax=1e34, interp_method='nearest', allow_time_extrapolation=True)
 

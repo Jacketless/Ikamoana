@@ -25,7 +25,7 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None, in
 
     # Create the forcing fieldset grid for the simulation
     ocean = Grid.from_netcdf(filenames=Forcing_Files, variables=Forcing_Variables, dimensions=Forcing_Dimensions,
-                             vmin=-200, vmax=1e34, allow_time_extrapolation=True)
+                             vmin=-200, vmax=1e5, allow_time_extrapolation=True)
 
     if 'TaxisRK4' in Kernels:
         T_grads = ocean.H.gradient()
