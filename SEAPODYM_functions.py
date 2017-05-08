@@ -1,7 +1,8 @@
 import numpy as np
 import struct
-from parcels.field import Field
-from parcels.grid import Grid
+import math
+from parcels.field import Field, Geographic, GeographicPolar
+from parcels.grid import Grid, unit_converters
 from parcels.particle import *
 from netCDF4 import num2date
 from datetime import datetime
@@ -65,14 +66,13 @@ def getPopFromDensityField(grid, density_field='Start'):
     # Convert to km^2
     area /= 1000*1000
     # Total fish is density*area
-    print(getattr(grid, density_field).data)
     total_fish = np.sum(getattr(grid, density_field).data * area)
     return total_fish
 
 
-def Create_Landmask(grid):
-    def isocean(p, lim=1e5):
-        return 1 if p < lim else 0
+def Create_Landmask(grid, lim=1e-5):
+    def isocean(p, lim):
+        return 1 if p > lim else 0
 
     nx = grid.H.lon.size
     ny = grid.H.lat.size
@@ -80,12 +80,32 @@ def Create_Landmask(grid):
     pbar = ProgressBar()
     for i in pbar(range(nx)):
         for j in range(1, ny-1):
-            if not isocean(grid.H.data[0, j, i]):  # For each land point
+            if not isocean(grid.H.data[0, j, i],lim):  # For each land point
                 mask[i,j] = 1
 
     Mask = Field('LandMask', mask, grid.H.lon, grid.H.lat, transpose=True)
     Mask.interp_method = 'nearest'
     return Mask#ClosestLon, ClosestLat
+
+
+def Create_SEAPODYM_Taxis_Fields(dHdx, dHdy, start_age=4, taxis_scale=1):
+    Tx = np.zeros(np.shape(dHdx.data), dtype=np.float32)
+    Ty = np.zeros(np.shape(dHdx.data), dtype=np.float32)
+    months = start_age
+    age = months*30*24*60*60
+    for t in range(dHdx.time.size):
+        age = (start_age+t)*30*24*60*60
+        if age - (months*30*24*60*60) >= (30*24*60*60):
+            months += 1
+        for x in range(dHdx.lon.size):
+            for y in range(dHdx.lat.size):
+                Tx[t, y, x] = V_max(months) * dHdx.data[t, y, x] * taxis_scale * (1000*1.852*60 * math.cos(dHdx.lat[y]*math.pi/180))# / ((1 / 1000. / 1.852 / 60.) / math.cos(dHdx.lat[y]*math.pi/180))
+                Ty[t, y, x] = V_max(months) * dHdy.data[t, y, x] * taxis_scale * (1000*1.852*60)#/ (1 / 1000. / 1.852 / 60.)
+
+    return [Field('Tx', Tx, dHdx.lon, dHdx.lat, time=dHdx.time, interp_method='nearest', allow_time_extrapolation=True,
+                  units=None),
+            Field('Ty', Ty, dHdx.lon, dHdx.lat, time=dHdx.time, interp_method='nearest', allow_time_extrapolation=True,
+                  units=None)]
 
 
 def Create_SEAPODYM_Diffusion_Field(H, timestep=30*24*60*60, sigma=0.1769952864978924, c=0.662573993401526, P=3,
@@ -129,8 +149,8 @@ def Create_SEAPODYM_Grid(forcing_files, startD=None, startD_dims=None,
         startD_dims = forcing_dims
     if verbose:
         print("Creating Grid\nLoading files:")
-    for f in forcing_files.values():
-        print(f)
+        for f in forcing_files.values():
+            print(f)
     grid = Grid.from_netcdf(filenames=forcing_files, variables=forcing_vars, dimensions=forcing_dims,
                             vmin=-200, vmax=1e34, interp_method='nearest', allow_time_extrapolation=True)
 
@@ -170,11 +190,27 @@ def Create_SEAPODYM_Grid(forcing_files, startD=None, startD_dims=None,
             K.data *= 1.30427305
 
     grid.add_field(K)
+
     if verbose:
         print("Calculating H Gradient Fields")
     gradients = grid.H.gradient()
     for field in gradients:
         grid.add_field(field)
+
+    if verbose:
+        print("Calculating Taxis Fields")
+    T_Fields = Create_SEAPODYM_Taxis_Fields(grid.dH_dx, grid.dH_dy, start_age=start_age)
+    for field in T_Fields:
+        grid.add_field(field)
+
+    if verbose:
+        print("Creating combined Taxis and Advection field")
+    grid.add_field(Field('TU', grid.U.data+grid.Tx.data, grid.U.lon, grid.U.lat, time=grid.U.time, vmin=-200, vmax=1e34,
+                         interp_method='nearest', allow_time_extrapolation=True, units=unit_converters('spherical')[0]))
+    grid.add_field(Field('TV', grid.V.data+grid.Ty.data, grid.U.lon, grid.U.lat, time=grid.U.time, vmin=-200, vmax=1e34,
+                         interp_method='nearest', allow_time_extrapolation=True, units=unit_converters('spherical')[1]))
+
+
     if verbose:
         print("Calculating K Gradient Fields")
     K_gradients = grid.K.gradient()

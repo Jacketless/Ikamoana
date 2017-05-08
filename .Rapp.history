@@ -1,0 +1,132 @@
+m = matrix(c(0.75, 0.6, 0.25, 0.4), 2,2)
+m
+m*100
+m^100
+m^10
+m^2
+8*30*6
+seq(0,1,0.01)
+log(seq(0,1,0.01))
+log(seq(0,1,0.01)+1)
+library(RNetCDF)#
+setwd("/Users/joescuttphillips/Dropbox/UNSW_PostDoc/IKAMOANA/")#
+#
+IKAMOANA_Output = 'combinedtestDensity.nc'
+I_O = open.nc(IKAMOANA_Output)#
+S_O = open.nc(SEAPODYM_Output)#
+#
+I_Lons = var.get.nc(I_O, "nav_lon")#
+I_Lats = var.get.nc(I_O, "nav_lat")#
+I_Density = var.get.nc(I_O, "Density")#
+#
+S_Lons = var.get.nc(S_O, "lon")#
+S_Lats = var.get.nc(S_O, "lat")#
+S_Density = var.get.nc(S_O, "skipjack_cohort_20021015_density_M0")#
+#
+dim(I_Density)#
+dim(S_Density)#
+max_time = dim(I_Density)[3]#
+#
+# Make density relative#
+for(t in 1:dim(I_Density)[3]){#
+	S_Density[,,t] = S_Density[,,t]/sum(S_Density[,,t], na.rm=TRUE)#
+	I_Density[,,t] = I_Density[,,t]/sum(I_Density[,,t], na.rm=TRUE)#
+}
+SEAPODYM_Output = 'SEAPODYM_Forcing_Data/Latest/DENSITY/2003_Density.nc'
+S_O = open.nc(SEAPODYM_Output)
+S_Density = var.get.nc(S_O, "skipjack_cohort_20021015_density_M0")
+Make density relative#
+for(t in 1:dim(I_Density)[3]){#
+	S_Density[,,t] = S_Density[,,t]/sum(S_Density[,,t], na.rm=TRUE)#
+	I_Density[,,t] = I_Density[,,t]/sum(I_Density[,,t], na.rm=TRUE)#
+}
+Look at correlation#
+temporal_subset = 1:dim(I_Density)[3]#
+CorrMap = array(,dim=dim(I_Density[,,1]))#
+for(x in 1:dim(CorrMap)[1]){#
+	for(y in 1:dim(CorrMap)[2]){#
+		CorrMap[x,y] = cor(I_Density[x,y, temporal_subset], #
+						   S_Density[x,y, temporal_subset], method='kendall')#
+	}#
+}#
+#
+image(CorrMap, col=rainbow(12), zlim=c(-1,1), x=I_Lons[,1], y=I_Lats[1,], xlab="", ylab="")#
+points(rep(268,11), seq(20,50.5,length=11), col= rainbow(12), pch=15, xpd=TRUE, cex=1.8)#
+text(rep(268,11)+2, y=seq(20,50.5,length=11)-0.5, seq(-1,1,length=11),pos=4, cex=0.8)#
+text(268, 58, expression(atop("Kendall", "correlation")))
+par(mfrow=c(2,length(seq(6,dim(I_Density)[3],6))+1), mar=c(0,0,2,0))#
+for(t in seq(6,dim(I_Density)[3],6)){#
+	image(S_Density[,,t]^scale, col=topo.colors(12), xaxt="n", yaxt="n", zlim=c(0,max_d^0.2))#
+	title(paste("Month", t),cex.main=1.8)#
+	#mtext(paste("Month", t),2, , las=1)#
+}#
+plot(c(0,0),c(0.5,1),type="n",xaxt="n",yaxt="n",bty="n", xlab="",ylab="")#
+points(rep(-.5,11), seq(0,0.9,length=11), pch=15, cex=6, col=topo.colors(12), xpd=NA)#
+text(rep(-.35,11), y=(seq(0,1,length=8)^scale)*0.9,round(seq(0,round(max_d,4),length=8),4),pos=4, xpd=NA)#
+text(0, 0.98, "Relative Density", cex=2)#
+for(t in seq(6,dim(I_Density)[3],6)){#
+	I_timeslice = I_Density[,,t]#
+	I_timeslice[which(is.na(S_Density[,,t]))] = NA#
+	image(I_timeslice^ scale, col=topo.colors(12), xaxt="n", yaxt="n", zlim=c(0,max_d^0.2))#
+}
+c(2,length(seq(6,dim(I_Density)[3],6))+1)
+par(mfrow=c(2,length(seq(6,dim(I_Density)[3],6))+1), mar=c(0,0,2,0))
+seq(6,dim(I_Density)[3],6)
+for(t in seq(6,dim(I_Density)[3],6)){#
+	image(S_Density[,,t]^scale, col=topo.colors(12), xaxt="n", yaxt="n", zlim=c(0,max_d^0.2))#
+	title(paste("Month", t),cex.main=1.8)#
+	#mtext(paste("Month", t),2, , las=1)#
+}
+S_Density[,,t]
+scale
+max_d = max(c(S_Density, I_Density), na.rm=TRUE)#
+scale = 0.2#
+par(mfrow=c(2,length(seq(6,dim(I_Density)[3],6))+1), mar=c(0,0,2,0))#
+for(t in seq(6,dim(I_Density)[3],6)){#
+	image(S_Density[,,t]^scale, col=topo.colors(12), xaxt="n", yaxt="n", zlim=c(0,max_d^0.2))#
+	title(paste("Month", t),cex.main=1.8)#
+	#mtext(paste("Month", t),2, , las=1)#
+}#
+plot(c(0,0),c(0.5,1),type="n",xaxt="n",yaxt="n",bty="n", xlab="",ylab="")#
+points(rep(-.5,11), seq(0,0.9,length=11), pch=15, cex=6, col=topo.colors(12), xpd=NA)#
+text(rep(-.35,11), y=(seq(0,1,length=8)^scale)*0.9,round(seq(0,round(max_d,4),length=8),4),pos=4, xpd=NA)#
+text(0, 0.98, "Relative Density", cex=2)#
+for(t in seq(6,dim(I_Density)[3],6)){#
+	I_timeslice = I_Density[,,t]#
+	I_timeslice[which(is.na(S_Density[,,t]))] = NA#
+	image(I_timeslice^ scale, col=topo.colors(12), xaxt="n", yaxt="n", zlim=c(0,max_d^0.2))#
+}
+max_d
+max_d = max(c(S_Density[,,1:dim(I_Density)[3]], I_Density), na.rm=TRUE)#
+scale = 0.2#
+par(mfrow=c(2,length(seq(6,dim(I_Density)[3],6))+1), mar=c(0,0,2,0))#
+for(t in seq(6,dim(I_Density)[3],6)){#
+	image(S_Density[,,t]^scale, col=topo.colors(12), xaxt="n", yaxt="n", zlim=c(0,max_d^0.2))#
+	title(paste("Month", t),cex.main=1.8)#
+	#mtext(paste("Month", t),2, , las=1)#
+}#
+plot(c(0,0),c(0.5,1),type="n",xaxt="n",yaxt="n",bty="n", xlab="",ylab="")#
+points(rep(-.5,11), seq(0,0.9,length=11), pch=15, cex=6, col=topo.colors(12), xpd=NA)#
+text(rep(-.35,11), y=(seq(0,1,length=8)^scale)*0.9,round(seq(0,round(max_d,4),length=8),4),pos=4, xpd=NA)#
+text(0, 0.98, "Relative Density", cex=2)#
+for(t in seq(6,dim(I_Density)[3],6)){#
+	I_timeslice = I_Density[,,t]#
+	I_timeslice[which(is.na(S_Density[,,t]))] = NA#
+	image(I_timeslice^ scale, col=topo.colors(12), xaxt="n", yaxt="n", zlim=c(0,max_d^0.2))#
+}
+Look at correlation#
+temporal_subset = 1:dim(I_Density)[3]#
+CorrMap = array(,dim=dim(I_Density[,,1]))#
+for(x in 1:dim(CorrMap)[1]){#
+	for(y in 1:dim(CorrMap)[2]){#
+		CorrMap[x,y] = cor(I_Density[x,y, temporal_subset], #
+						   S_Density[x,y, temporal_subset], method='kendall')#
+	}#
+}#
+#
+image(CorrMap, col=rainbow(12), zlim=c(-1,1), x=I_Lons[,1], y=I_Lats[1,], xlab="", ylab="")#
+points(rep(268,11), seq(20,50.5,length=11), col= rainbow(12), pch=15, xpd=TRUE, cex=1.8)#
+text(rep(268,11)+2, y=seq(20,50.5,length=11)-0.5, seq(-1,1,length=11),pos=4, cex=0.8)#
+text(268, 58, expression(atop("Kendall", "correlation")))
+dim(I_Lons)
+dim(I_Density)
