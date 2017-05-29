@@ -88,6 +88,23 @@ def Create_Landmask(grid, lim=1e-5):
     return Mask#ClosestLon, ClosestLat
 
 
+def Create_SEAPODYM_F_Field(E, start_age=4, q=0.001032652877899101, selectivity_func=3, mu= 52.56103941719986, sigma=8.614813906820441, r_asymp=0.2456242856428466):
+    F_Data = np.zeros(np.shape(E.data), dtype=np.float32)
+    age = start_age
+    for t in range(E.time.size):
+        if E.time[t] - E.time[0] > (age-start_age+1)*28*24*60*60:
+            age += 1
+        l = GetLengthFromAge(age)*100
+        if l > mu:
+            Selectivity = r_asymp+(1-r_asymp)*np.exp(-(pow(l-mu,2)/(sigma)))
+        else:
+            Selectivity = np.exp(-(pow(l-mu,2)/(sigma)))
+
+        print("Age = %s months, Length = %scm, Selectivity = %s" % (age, l, Selectivity))
+        F_Data[t,:,:] = E.data[t,:,:] * q * Selectivity
+    return(Field('F', F_Data, E.lon, E.lat, time=E.time, interp_method='nearest'))
+
+
 def Create_SEAPODYM_Taxis_Fields(dHdx, dHdy, start_age=4, taxis_scale=1):
     Tx = np.zeros(np.shape(dHdx.data), dtype=np.float32)
     Ty = np.zeros(np.shape(dHdx.data), dtype=np.float32)
@@ -465,3 +482,28 @@ def Create_TaggedFish_Class(type=JITParticle):
             self.Vmax = V_max(self.monthly_age)
 
     return TaggedFish
+
+
+def getSEAPODYMarguments(run="2003"):
+    args = {}
+    if run is "2003":
+        args.update({'ForcingFiles': {'U': 'SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003Run/2003run_PHYS_month*.nc',
+                                      'V': 'SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003Run/2003run_PHYS_month*.nc',
+                                      'H': 'SEAPODYM_Forcing_Data/Latest/HABITAT/2003Run/INTERIM-NEMO-PISCES_skipjack_habitat_index_*.nc',
+                                      'start': 'SEAPODYM_Forcing_Data/Latest/DENSITY/INTERIM-NEMO-PISCES_skipjack_cohort_20021015_density_M0_20030115.nc',
+                                      'E': 'SEAPODYM_Forcing_Data/Latest/FISHERIES/P3_E_Data.nc'}})
+        args.update({'ForcingVariables': {'U': 'u',
+                                          'V': 'v',
+                                          'H': 'skipjack_habitat_index',
+                                          'start': 'skipjack_cohort_20021015_density_M0',
+                                          'E': 'P3'}})
+        args.update({'Filestems': {'U': 'm',
+                                   'V': 'm',
+                                   'H': 'd'}})
+        args.update({'Kernels': ['Advection_C',
+                                 'LagrangianDiffusion',
+                                 'TaxisRK4',
+                                 'FishingMortality',
+                                 'Move',
+                                 'MoveOffLand']})
+    return args

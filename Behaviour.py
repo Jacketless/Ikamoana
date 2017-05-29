@@ -14,6 +14,10 @@ def CheckRelease(particle, grid, time, dt):
         particle.active = 1
 
 
+def FishingMortality(particle, grid, time, dt):
+    particle.school = particle.school * (1-(grid.F[time, particle.lon, particle.lat] * (dt/(30*24*60*60))))
+
+
 def AgeParticle(particle, grid, time, dt):
     #print("Ageing")
     particle.age += dt
