@@ -73,8 +73,8 @@ def advanceGrid1Month(grid, gridnew):
 def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals=100, deploy_times=None, timestep=21600, time=30,
                output_file='FADRelease', mode='scipy', first_file_date=757382400, shift=0):
 
-    first_time  = datetime.fromtimestamp(np.min(deploy_times))
-    end_time = datetime.fromtimestamp(np.max(deploy_times))
+    first_time  = datetime.fromtimestamp(np.min(deploy_times))#+283993200)
+    end_time = datetime.fromtimestamp(np.max(deploy_times))#+283993200)
     year_start = year = first_time.year
     month_start = month = first_time.month
     year_end = end_time.year
@@ -88,8 +88,8 @@ def FADRelease(filenames, variables, dimensions, lons=[0], lats=[0], individuals
 
     print(float(first_month_index.days)/365 * 12)
 
-    first_month_index = int(float(first_month_index.days)/365 * 12) - 1
-    last_month_index = int(float(last_month_index.days)/365 * 12)
+    first_month_index = int(float(first_month_index.days)/365 * 12)# - 1
+    last_month_index = int(float(last_month_index.days)/365 * 12) +1
     print("Earliest month index = %s" % first_month_index)
     print("Last month index = %s" % last_month_index)
 
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     variables = {'U': args.netcdf_vars[0], 'V': args.netcdf_vars[1]}
     dimensions = {'lon': args.map_dimensions[1], 'lat': args.map_dimensions[0], 'time': args.map_dimensions[2]}
     if not raijin_run:
-        dimensions = {'lon': 'longitude', 'lat': 'latitude', 'time': 'time'}
+        dimensions = {'lon': 'lon', 'lat': 'lat', 'time': 'time'}
     # Load FAD deployment data
     D_file = open(args.deployment_file, 'r')
     vars = D_file.readline().split()
@@ -224,14 +224,18 @@ if __name__ == "__main__":
     print("Loaded %s FAD deployments" % N_FADs)
 
     times = [float(v) for v in D_vars['"time"']]
+    print(times[-1])
+    #for v in range(len(D_vars['"lon"'])):
+    #    print(v)
+    #    print(float(D_vars['"lon"'][v]))
 
     if raijin_run:
         filenames = [sorted(glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_u_*.nc")))),
                      sorted(glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_v_*.nc"))))]
         first_file = 757382400
     else:
-        filenames = [sorted(glob(str(path.local("SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003run_PHYS_month*.nc")))),
-                     sorted(glob(str(path.local("SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003run_PHYS_month*.nc"))))]
+        filenames = [sorted(glob(str(path.local("SEAPODYM_Forcing_Data/PHYSICAL/2003Cohort_PHYS_month*.nc")))),
+                     sorted(glob(str(path.local("SEAPODYM_Forcing_Data/PHYSICAL/2003Cohort_PHYS_month*.nc"))))]
         first_file = 1041339600
             #filenames = [glob(str(path.local('SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003run_PHYS_month*.nc')))] * 2
             #dimensions = {'lon': 'longitude', 'lat': 'latitude', 'time': 'time'}
