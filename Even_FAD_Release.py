@@ -56,15 +56,23 @@ def loadBRANgrid(Ufilenames, Vfilenames,
 
 
 def createEvenStartingDistribution(grid, field='U', lon_range=[110, 290], lat_range=[-20,20]):
-    data = np.zeros(np.shape(getattr(grid, field).data[[0,1],:,:]), dtype=np.float32)
+    if isinstance(field, basestring):
+        data = np.zeros(np.shape(getattr(grid, field).data[[0,1],:,:]), dtype=np.float32)
+        lats = getattr(grid, field).lat
+        lons = getattr(grid, field).lon
+    else:
+        lons = np.arange(lon_range[0], lon_range[1]+1, field, dtype=np.float32)
+        lats = np.arange(lat_range[0], lat_range[1]+1, field, dtype=np.float32)
+        data = np.zeros([2, len(lats), len(lons)], dtype=np.float32)
+
     def isOcean(cell, lim=1e30):
         return 0 if cell > lim else 1
-    lats = getattr(grid, field).lat
-    lons = getattr(grid, field).lon
-
+    
     for x in range(np.where(lons == lon_range[0])[0], np.where(lons == lon_range[1])[0]):
         for y in range(np.where(lats == lat_range[0])[0], np.where(lats == lat_range[1])[0]):
-            data[0,y,x] = isOcean(getattr(grid, field).data[0,y,x])
+            grid_x = np.where(np.round(grid.U.lon) == lons[x])[0]
+            grid_y = np.where(np.round(grid.U.lat) == lats[y])[0]
+            data[0,y,x] = isOcean(grid.U.data[0,grid_y,grid_x])
     return Field('start', data, lons, lats, time=np.arange(2, dtype=np.float32))
 
 
@@ -85,7 +93,7 @@ def advanceGrid1Month(grid, gridnew):
 
 
 def EvenFADRelease(filenames, variables, dimensions, fad_density,
-                   timestep=21600, time=3, seed_timestep=7, start_time=757382400, start_field=None, start_dims=None,
+                   timestep=21600, time=3, seed_timestep=7, start_time=757382400, start_field_res=None,
                    output_file='FADRelease', mode='scipy', first_file_date=757382400, shift=0):
 
     days2secs = 24*60*60
@@ -111,10 +119,8 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
                         variables, dimensions, shift)
 
     grid.add_constant("FAD_duration", 6*30*24*60*60)
-    if start_field is not None:
-        grid.add_field(Field.from_netcdf(name='start',filenames=start_field, dimensions=start_dims))
 
-    StartField = createEvenStartingDistribution(grid, field='U' if start_field is None else 'start')
+    StartField = createEvenStartingDistribution(grid, field='U' if start_field_res is None else start_field_res)
     StartField.write(output_file)
     deployment_cells = np.count_nonzero(StartField.data)
     print(np.count_nonzero(StartField.data))
@@ -206,8 +212,8 @@ if __name__ == "__main__":
                    help='Time of tag release (seconds since 1-1-1970)')
     p.add_argument('-sf', '--startfield', type=str, default='none',
                    help='Name of a netcdf with dimensions and land mask to use in start field creation')
-    p.add_argument('-sfd', '--startfield_dems', type=str, nargs=3, default=['latitude', 'longitude', 'time'],
-                   help='Name start field netcdf dimensions')
+    p.add_argument('-sfr', '--startfield_res', type=float, default=1,
+                   help='Resolution in degrees for start field grid')
     p.add_argument('-l', '--location', type=float, nargs=2, default=[180,0],
                    help='Release location (lon,lat)')
     p.add_argument('-r', '--raijin_run', type=str, default='False',
@@ -245,17 +251,17 @@ if __name__ == "__main__":
     if raijin_run:
         filenames = [sorted(glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_u_*.nc")))),
                      sorted(glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_v_*.nc"))))]
-        args.startfield = glob(str(path.local('SEAPODYM_Forcing_Data/Latest/HABITAT/2003Run/INTERIM-NEMO-PISCES_skipjack_habitat_index_19970115.nc')))
+        args.startfield_res = 1
         first_file = 757382400
     else:
-        filenames = [sorted(glob(str(path.local("SEAPODYM_Forcing_Data/Latest/HABITAT/2003Run/2003run_PHYS_month*.nc")))),
+        filenames = [sorted(glob(str(path.local("SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003Run/2003run_PHYS_month*.nc")))),
                      sorted(glob(str(path.local("SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003Run/2003run_PHYS_month*.nc"))))]
         first_file = 1041339600
 
     print(args.starttime)
 
     EvenFADRelease(filenames, variables, dimensions, fad_density=args.density,
-                   start_field=args.startfield, start_dims=args.startfield_dims,
+                   start_field_res=args.startfield_res,
                timestep=args.timestep, time=args.time, seed_timestep=args.seed_time, start_time=args.starttime,
                output_file=output_filename, mode=args.mode,
                first_file_date=first_file, shift=shift)
