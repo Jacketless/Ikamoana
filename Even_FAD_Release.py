@@ -5,6 +5,7 @@ from glob import glob
 from py import path
 from datetime import timedelta, datetime
 import calendar
+import random
 
 
 def delaystart(particle, grid, time, dt):
@@ -35,7 +36,7 @@ def delayedAdvectionRK4(particle, grid, time, dt):
 
 def KillFAD(particle):
     if particle.active > 0:
-        print("FAD hit model bounds at %s|%s!" % (particle.lon, particle.lat))
+        #print("FAD hit model bounds at %s|%s!" % (particle.lon, particle.lat))
         particle.active = -1 * particle.active
         particle.lon = particle.prev_lon
         particle.lat = particle.prev_lat
@@ -61,18 +62,22 @@ def createEvenStartingDistribution(grid, field='U', lon_range=[110, 290], lat_ra
         lats = getattr(grid, field).lat
         lons = getattr(grid, field).lon
     else:
-        lons = np.arange(lon_range[0], lon_range[1]+1, field, dtype=np.float32)
-        lats = np.arange(lat_range[0], lat_range[1]+1, field, dtype=np.float32)
+        lons = np.arange(grid.U.lon[0], grid.U.lon[-1]+field, field, dtype=np.float32)
+        lats = np.arange(grid.U.lat[0], grid.U.lat[-1]+field, field, dtype=np.float32)
         data = np.zeros([2, len(lats), len(lons)], dtype=np.float32)
 
     def isOcean(cell, lim=1e30):
-        return 0 if cell > lim else 1
-    
+        return 0 if np.any(cell > lim) else 1
+
     for x in range(np.where(lons == lon_range[0])[0], np.where(lons == lon_range[1])[0]):
         for y in range(np.where(lats == lat_range[0])[0], np.where(lats == lat_range[1])[0]):
             grid_x = np.where(np.round(grid.U.lon) == lons[x])[0]
             grid_y = np.where(np.round(grid.U.lat) == lats[y])[0]
-            data[0,y,x] = isOcean(grid.U.data[0,grid_y,grid_x])
+            land_cells = []
+            for gx in grid_x:
+                for gy in grid_y:
+                    land_cells.append(isOcean(grid.U.data[0,gy,gx]))
+            data[0,y,x] = np.any(land_cells)
     return Field('start', data, lons, lats, time=np.arange(2, dtype=np.float32))
 
 
@@ -94,11 +99,13 @@ def advanceGrid1Month(grid, gridnew):
 
 def EvenFADRelease(filenames, variables, dimensions, fad_density,
                    timestep=21600, time=3, seed_timestep=7, start_time=757382400, start_field_res=None,
-                   output_file='FADRelease', mode='scipy', first_file_date=757382400, shift=0):
+                   output_file='FADRelease', mode='scipy', first_file_date=757382400, shift=0,
+                   write_density=True):
 
     days2secs = 24*60*60
     first_time  = datetime.fromtimestamp(start_time)
     end_time = datetime.fromtimestamp(start_time+((seed_timestep+1)*days2secs*time))
+    print("Simulation starts %s, finishes %s" % (first_time, end_time))
     year_start = year = first_time.year
     month_start = month = first_time.month
     year_end = end_time.year
@@ -125,7 +132,7 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
     deployment_cells = np.count_nonzero(StartField.data)
     print(np.count_nonzero(StartField.data))
 
-    abs_seeding_timestep = seed_timestep*7*days2secs
+    abs_seeding_timestep = seed_timestep*days2secs
 
     ParticleClass = JITParticle if mode == 'jit' else ScipyParticle
 
@@ -145,11 +152,13 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
     results_file = ParticleFile(output_file + '_trajectories', fadset)
 
     print("Setting deployment times for all particles")
+    fd_list = range(len(fadset.particles))
+    random.shuffle(fd_list)
     for f in range(len(fadset.particles)):
-        fadset.particles[f].deployed = start_time + int((f-1)/(fad_density*deployment_cells))*abs_seeding_timestep
+        fadset.particles[f].deployed = start_time + np.floor((fd_list[f])/(fad_density*deployment_cells))*abs_seeding_timestep
         fadset.particles[f].active = 0
-
-    print("Deployment time of first FAD seeding event: %s" % datetime.fromtimestamp(fadset.particles[0].deployed))
+    print("Unique deployment dates are: %s" % [datetime.fromtimestamp(s) for s in set([f.deployed for f in fadset.particles])])
+    print("Deployment time of first FAD seeding event: %s" % datetime.fromtimestamp(min([f.deployed for f in fadset.particles])))
 
     def add_months(sourcedate,months=1):
         print(sourcedate)
@@ -163,28 +172,28 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
     for t in range(1,T):
         times.append(add_months(times[-1]))
     Density_Time = np.array([(t - datetime(1970, 1, 1)).total_seconds() for t in times], dtype=np.float32)
-    Density_Data = np.full([len(range(first_month_index, last_month_index)), grid.U.lat.size, grid.U.lon.size],-1, dtype=np.float64)
+    Density_Data = np.full([len(range(first_month_index, last_month_index+1)), StartField.lat.size, StartField.lon.size],-1, dtype=np.float64)
     print(Density_Time)
     print(np.shape(Density_Data))
-    FAD_Density = Field('Density', Density_Data, lon=grid.U.lon, lat=grid.U.lat, time=Density_Time)
+    FAD_Density = Field('Density', Density_Data, lon=StartField.lon, lat=StartField.lat, time=Density_Time)
 
     print("Starting Sim")
     days = 31
     for m in range(first_month_index, last_month_index):
         print("Month %s" % m)
-        start = grid.U.time[0]
-        end = grid.U.time[0]+(days*24*60*60)
+        start = grid.U.time[0]# + shift
+        end = grid.U.time[0]+(days*24*60*60)# + shift
         print("Grid timeorigin = %s" % grid.U.time_origin)
         print("Executing from %s until %s, should be %s steps" %
               (datetime.fromtimestamp(start), datetime.fromtimestamp(end), (end-start)/timestep))
         fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
                        starttime=grid.U.time[0], endtime=grid.U.time[0]+(30*24*60*60), dt=timestep,
                        output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: KillFAD})
-        print("density index = %s" % range(first_month_index, last_month_index)==m)
-        #FAD_Density = Field('Density', np.full([2, grid.U.lat.size, grid.U.lon.size],-1, dtype=np.float64),
-         #               lon=grid.U.lon, lat=grid.U.lat, time=np.array([start,end], dtype=np.float32))
-        FAD_Density.data[m,:,:] = np.transpose(fadset.density())
-        FAD_Density.write(output_file)
+        if write_density:
+            density_index = np.where([r == m for r in range(first_month_index, last_month_index)])[0]
+            print("density index = %s" % density_index)
+            FAD_Density.data[density_index,:,:] = np.transpose(fadset.density(StartField))
+            FAD_Density.write(output_file)
         days = advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions, shift))
         print("grid.data size: %s-%s-%s" % (np.shape(grid.U.data)))
 
@@ -216,9 +225,13 @@ if __name__ == "__main__":
                    help='Resolution in degrees for start field grid')
     p.add_argument('-l', '--location', type=float, nargs=2, default=[180,0],
                    help='Release location (lon,lat)')
+    p.add_argument('-wd', '--write_density', type=str, default='true',
+                   help='Boolean for whether to calculate and write density of FADs at runtime')
     p.add_argument('-r', '--raijin_run', type=str, default='False',
                    help='Raijin run boolean, defaults to False (true will overwrite filename locations etc.')
     args = p.parse_args()
+
+    args.write_density = True if args.write_density is 'True' else False
 
     if args.raijin_run == 'True':
         print("Raijin Run")
@@ -245,23 +258,28 @@ if __name__ == "__main__":
     filenames = {'U': args.files[0], 'V': args.files[1]}
     variables = {'U': 'u', 'V': 'v'}
     dimensions = {'lon': 'xu_ocean', 'lat': 'yu_ocean', 'time': 'Time'}
-    if not raijin_run:
-        dimensions = {'lon': 'longitude', 'lat': 'latitude', 'time': 'time'}
+    #if not raijin_run:
+     #   dimensions = {'lon': 'longitude', 'lat': 'latitude', 'time': 'time'}
 
     if raijin_run:
         filenames = [sorted(glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_u_*.nc")))),
                      sorted(glob(str(path.local("/g/data/gb6/BRAN/BRAN_2016/OFAM/ocean_v_*.nc"))))]
-        args.startfield_res = 1
         first_file = 757382400
+        shift = 283996800
     else:
         filenames = [sorted(glob(str(path.local("SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003Run/2003run_PHYS_month*.nc")))),
                      sorted(glob(str(path.local("SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003Run/2003run_PHYS_month*.nc"))))]
+        filenames = [str(path.local("/Volumes/SAMSUNG_4TB/Ocean_Model_Data/OFAM_month1/ocean_u_1993_01.TropPac.nc")),
+                     str(path.local("/Volumes/SAMSUNG_4TB/Ocean_Model_Data/OFAM_month1/ocean_v_1993_01.TropPac.nc"))]
         first_file = 1041339600
+        first_file = 725846400
+        shift = 694224000
 
     print(args.starttime)
-
+    print(filenames)
     EvenFADRelease(filenames, variables, dimensions, fad_density=args.density,
                    start_field_res=args.startfield_res,
                timestep=args.timestep, time=args.time, seed_timestep=args.seed_time, start_time=args.starttime,
                output_file=output_filename, mode=args.mode,
-               first_file_date=first_file, shift=shift)
+               first_file_date=first_file, shift=shift,
+                   write_density=args.write_density)
