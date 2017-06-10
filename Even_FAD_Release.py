@@ -62,8 +62,8 @@ def createEvenStartingDistribution(grid, field='U', lon_range=[110, 290], lat_ra
         lats = getattr(grid, field).lat
         lons = getattr(grid, field).lon
     else:
-        lons = np.arange(grid.U.lon[0], grid.U.lon[-1]+field, field, dtype=np.float32)
-        lats = np.arange(grid.U.lat[0], grid.U.lat[-1]+field, field, dtype=np.float32)
+        lons = round(np.arange(grid.U.lon[0], grid.U.lon[-1]+field, field, dtype=np.float32))
+        lats = round(np.arange(grid.U.lat[0], grid.U.lat[-1]+field, field, dtype=np.float32))
         data = np.zeros([2, len(lats), len(lons)], dtype=np.float32)
 
     def isOcean(cell, lim=1e30):
