@@ -50,7 +50,7 @@ def loadBRANgrid(Ufilenames, Vfilenames,
                  'V': Vfilenames}
     print("loading grid files:")
     print(filenames)
-    grid = Grid.from_netcdf(filenames, vars, dims)
+    grid = Grid.from_netcdf(filenames, vars, dims, indices={'lat': range(250,1250), 'lon': range(1000, 2900)})
     grid.U.time += shift
     grid.V.time += shift
     return grid
@@ -178,16 +178,16 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
     FAD_Density = Field('Density', Density_Data, lon=StartField.lon, lat=StartField.lat, time=Density_Time)
 
     print("Starting Sim")
-    days = 31
+    days = 30
     for m in range(first_month_index, last_month_index):
         print("Month %s" % m)
         start = grid.U.time[0]# + shift
-        end = grid.U.time[0]+(days*24*60*60)# + shift
+        end = grid.U.time[0]+(days*24*60*60) + 1# + shift
         print("Grid timeorigin = %s" % grid.U.time_origin)
         print("Executing from %s until %s, should be %s steps" %
               (datetime.fromtimestamp(start), datetime.fromtimestamp(end), (end-start)/timestep))
         fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
-                       starttime=grid.U.time[0], endtime=grid.U.time[0]+(30*24*60*60), dt=timestep,
+                       starttime=grid.U.time[0], endtime=end, dt=timestep,
                        output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: KillFAD})
         if write_density:
             density_index = np.where([r == m for r in range(first_month_index, last_month_index)])[0]
@@ -225,7 +225,7 @@ if __name__ == "__main__":
                    help='Resolution in degrees for start field grid')
     p.add_argument('-l', '--location', type=float, nargs=2, default=[180,0],
                    help='Release location (lon,lat)')
-    p.add_argument('-wd', '--write_density', type=str, default='true',
+    p.add_argument('-wd', '--write_density', type=str, default='True',
                    help='Boolean for whether to calculate and write density of FADs at runtime')
     p.add_argument('-r', '--raijin_run', type=str, default='False',
                    help='Raijin run boolean, defaults to False (true will overwrite filename locations etc.')
@@ -257,7 +257,7 @@ if __name__ == "__main__":
 
     filenames = {'U': args.files[0], 'V': args.files[1]}
     variables = {'U': 'u', 'V': 'v'}
-    dimensions = {'lon': 'xu_ocean', 'lat': 'yu_ocean', 'time': 'Time'}
+    dimensions = {'lon': 'xu_ocean', 'lat': 'yu_ocean', 'time': 'Time', 'depth': 'st_ocean'}
     #if not raijin_run:
      #   dimensions = {'lon': 'longitude', 'lat': 'latitude', 'time': 'time'}
 
