@@ -62,12 +62,12 @@ def createEvenStartingDistribution(grid, field='U', lon_range=[110, 290], lat_ra
         lats = getattr(grid, field).lat
         lons = getattr(grid, field).lon
     else:
-        lons = round(np.arange(grid.U.lon[0], grid.U.lon[-1]+field, field, dtype=np.float32))
-        lats = round(np.arange(grid.U.lat[0], grid.U.lat[-1]+field, field, dtype=np.float32))
+        lons = np.round(np.arange(grid.U.lon[0], grid.U.lon[-1]+field, field, dtype=np.float32))
+        lats = np.round(np.arange(grid.U.lat[0], grid.U.lat[-1]+field, field, dtype=np.float32))
         data = np.zeros([2, len(lats), len(lons)], dtype=np.float32)
 
-    def isOcean(cell, lim=1e30):
-        return 0 if np.any(cell > lim) else 1
+    def isOcean(cell, lim=1e-30):
+        return 0 if -1*lim < cell < lim else 1
 
     for x in range(np.where(lons == lon_range[0])[0], np.where(lons == lon_range[1])[0]):
         for y in range(np.where(lats == lat_range[0])[0], np.where(lats == lat_range[1])[0]):
@@ -81,11 +81,9 @@ def createEvenStartingDistribution(grid, field='U', lon_range=[110, 290], lat_ra
     return Field('start', data, lons, lats, time=np.arange(2, dtype=np.float32))
 
 
-def advanceGrid1Month(grid, gridnew):
+def advanceGrid1Month(grid, gridnew, days):
     for v in grid.fields:
             vnew = getattr(gridnew, v.name)
-            # Very roughly, we will kick out 30 days and load the new month (28-31 days)
-            days = len(vnew.time)
             if np.min(vnew.time) > v.time[-1]:  # forward in time, so appending at end
                 v.data = np.concatenate((v.data[days:, :, :], vnew.data[:, :, :]), 0)
                 v.time = np.concatenate((v.time[days:], vnew.time))
@@ -94,6 +92,7 @@ def advanceGrid1Month(grid, gridnew):
                 v.time = np.concatenate((vnew.time, v.time[:-days]))
             else:
                 raise RuntimeError("Time of gridnew in grid.advancetime() overlaps with times in old grid")
+    days = len(vnew.time)
     return days
 
 
@@ -125,7 +124,7 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
                         filenames[1][first_month_index:(first_month_index+3)],
                         variables, dimensions, shift)
 
-    grid.add_constant("FAD_duration", 6*30*24*60*60)
+    grid.add_constant("FAD_duration", 14*30*24*60*60)
 
     StartField = createEvenStartingDistribution(grid, field='U' if start_field_res is None else start_field_res)
     StartField.write(output_file)
@@ -172,7 +171,7 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
     for t in range(1,T):
         times.append(add_months(times[-1]))
     Density_Time = np.array([(t - datetime(1970, 1, 1)).total_seconds() for t in times], dtype=np.float32)
-    Density_Data = np.full([len(range(first_month_index, last_month_index+1)), StartField.lat.size, StartField.lon.size],-1, dtype=np.float64)
+    Density_Data = np.full([len(range(first_month_index, last_month_index)), StartField.lat.size, StartField.lon.size],-1, dtype=np.float64)
     print(Density_Time)
     print(np.shape(Density_Data))
     FAD_Density = Field('Density', Density_Data, lon=StartField.lon, lat=StartField.lat, time=Density_Time)
@@ -182,19 +181,19 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
     for m in range(first_month_index, last_month_index):
         print("Month %s" % m)
         start = grid.U.time[0]# + shift
-        end = grid.U.time[0]+(days*24*60*60) + 1# + shift
+        end = grid.U.time[0]+(days*24*60*60)
         print("Grid timeorigin = %s" % grid.U.time_origin)
         print("Executing from %s until %s, should be %s steps" %
               (datetime.fromtimestamp(start), datetime.fromtimestamp(end), (end-start)/timestep))
-        fadset.execute(fadset.Kernel(delayedAdvectionRK4) + fadset.Kernel(delaystart),
-                       starttime=grid.U.time[0], endtime=end, dt=timestep,
+        fadset.execute(fadset.Kernel(delaystart) + fadset.Kernel(delayedAdvectionRK4),
+                       starttime=grid.U.time[0], runtime=(days*24*60*60), dt=timestep,
                        output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: KillFAD})
         if write_density:
             density_index = np.where([r == m for r in range(first_month_index, last_month_index)])[0]
             print("density index = %s" % density_index)
             FAD_Density.data[density_index,:,:] = np.transpose(fadset.density(StartField))
             FAD_Density.write(output_file)
-        days = advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions, shift))
+        days = advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions, shift), days)
         print("grid.data size: %s-%s-%s" % (np.shape(grid.U.data)))
 
 
