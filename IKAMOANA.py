@@ -26,7 +26,7 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
     Animal = define_Animal_Class(ParticleClass)
 
     # Create the forcing fieldset grid for the simulation
-    ocean = Grid.from_netcdf(filenames=Forcing_Files, variables=Forcing_Variables, dimensions=Forcing_Dimensions,
+    ocean = FieldSet.from_netcdf(filenames=Forcing_Files, variables=Forcing_Variables, dimensions=Forcing_Dimensions,
                              vmin=-200, vmax=1e5, allow_time_extrapolation=True)
 
     if 'TaxisRK4' in Kernels:
@@ -56,11 +56,12 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
 
     # Create the particle set for our simulated animals
     if Init_Positions is not None:
-        animalset = ParticleSet.from_list(grid=ocean, lon=Init_Positions[0], lat=Init_Positions[1], pclass=Animal)
+        animalset = ParticleSet.from_list(fieldset=ocean, lon=Init_Positions[0], lat=Init_Positions[1], pclass=Animal)
     else:
-        animalset = ParticleSet.from_field(grid=ocean, start_field=ocean.start, size=individuals, pclass=Animal)
+        animalset = ParticleSet.from_field(fieldset=ocean, start_field=ocean.start, size=individuals, pclass=Animal)
     for a in animalset.particles:
-        a.monthly_age = start_age*30*24*60*60
+        a.age = start_age*30*24*60*60
+        a.monthly_age = start_age
 
     trajectory_file = ParticleFile(output_filestem + '_trajectories', animalset) if output_trajectory is True else None
 
@@ -69,8 +70,10 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
                   'LagrangianDiffusion':LagrangianDiffusion,
                   'TaxisRK4':TaxisRK4,
                   'FishingMortality':FishingMortality,
+                  'NaturalMortality':NaturalMortality,
                   'Move': Move,
-                  'MoveOffLand': MoveOffLand}
+                  'MoveOffLand': MoveOffLand,
+                  'AgeAnimal':AgeAnimal}
     KernelList = []
     KernelString = []
     for k in Kernels:
@@ -115,6 +118,7 @@ def define_Animal_Class(type=JITParticle):
     class IKAMOANA_Animal(type):
         active = Variable("active", to_write=True)
         age = Variable('age',dtype=np.float32)
+        monthly_age = Variable('monthly_age',dtype=np.float32)
         Dx = Variable('Dx', to_write=True, dtype=np.float32)
         Dy = Variable('Dy', to_write=True, dtype=np.float32)
         Cx = Variable('Cx', to_write=True, dtype=np.float32)
@@ -126,6 +130,9 @@ def define_Animal_Class(type=JITParticle):
         prev_lon = Variable('prev_lon', to_write=False)
         prev_lat = Variable('prev_lat', to_write=False)
         school = Variable('school', to_write=True, dtype=np.float32)
+        depletionF = Variable('depletionF', to_write=True, dtype=np.float32)
+        depletionN = Variable('depletionN', to_write=True, dtype=np.float32)
+        In_Loop = Variable('In_Loop', to_write=True, dtype=np.float32)
         #land_trigger = Variable('land_trigger', to_write=True)
 
         def __init__(self, *args, **kwargs):
@@ -171,7 +178,7 @@ if __name__ == "__main__":
                    help='Particle density field with which to initiate particle positions')
     p.add_argument('-sv', '--startfield_varname', default='start',
                    help='Name of the density variable in the startfield netcdf file')
-    p.add_argument('-sp', '--start_point', nargs=2, default=None,
+    p.add_argument('-sp', '--start_point', nargs='+', type=float, default=None,
                    help='start location to release all particles (overides startfield argument)')
     p.add_argument('-o', '--output', default='IKAMOANA',
                    help='Output filename stem')
@@ -213,13 +220,20 @@ if __name__ == "__main__":
         IKAMOANA_Args['ForcingFiles'].update({'start': args.startfield})
         IKAMOANA_Args['ForcingVariables'].update({'start': args.startfield_varname})
 
-    if args.run == 'SEAPODYM_2003':
-        temp_args = getSEAPODYMarguments('2003')
+    if args.run is not 'None':
+        temp_args = getSEAPODYMarguments(args.run)
         for arg in temp_args.keys():
             IKAMOANA_Args[arg] = temp_args[arg]
+        print(IKAMOANA_Args)
 
     if args.start_point is not None:
-        IKAMOANA_Args['startpoint'] = [[args.start_point[0]]*args.particles, [args.start_point[1]]*args.particles]
+        IKAMOANA_Args['startpoint'] = [[],[]]
+        points = len(args.start_point)/2
+        for p in range(0,points*2, 2):
+            IKAMOANA_Args['startpoint'][0].append([args.start_point[p]]*(args.particles/points))
+            IKAMOANA_Args['startpoint'][1].append([args.start_point[p+1]]*(args.particles/points))
+        IKAMOANA_Args['startpoint'][0] = [val for sublist in IKAMOANA_Args['startpoint'][0] for val in sublist]
+        IKAMOANA_Args['startpoint'][1] = [val for sublist in IKAMOANA_Args['startpoint'][1] for val in sublist]
 
     IKAMOANA(Forcing_Files=IKAMOANA_Args['ForcingFiles'], Forcing_Variables=IKAMOANA_Args['ForcingVariables'], individuals=args.particles,
              T=args.time,timestep=args.timestep, Kernels=IKAMOANA_Args['Kernels'], density_timestep=args.density_timestep,
