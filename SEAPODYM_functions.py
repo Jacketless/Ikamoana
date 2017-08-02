@@ -23,24 +23,24 @@ def getGradient(field, landmask=None):
                 for y in range(1, len(field.lat)-1):
                     if landmask[x, y] < 1:
                         if landmask[x+1, y] == 1:
-                            dVdx[t,y,x] = (data[t,y,x] - data[t,y,x-1])/dx[y]
+                            dVdx[t,y,x] = (data[t,y,x] - data[t,y,x-1])/dx[y, x]
                         elif landmask[x-1, y] == 1:
-                            dVdx[t,y,x] = (data[t,y,x+1] - data[t,y,x])/dx[y]
+                            dVdx[t,y,x] = (data[t,y,x+1] - data[t,y,x])/dx[y, x]
                         else:
-                            dVdx[t,y,x] = (data[t,y,x+1] - data[t,y,x-1])/(2*dx[y])
+                            dVdx[t,y,x] = (data[t,y,x+1] - data[t,y,x-1])/(2*dx[y, x])
                         if landmask[x, y+1] == 1:
-                            dVdy[t,y,x] = (data[t,y,x] - data[t,y-1,x])/dy[y]
+                            dVdy[t,y,x] = (data[t,y,x] - data[t,y-1,x])/dy[y, x]
                         elif landmask[x, y-1] == 1:
-                            dVdy[t,y,x] = (data[t,y+1,x] - data[t,y,x])/dy[y]
+                            dVdy[t,y,x] = (data[t,y+1,x] - data[t,y,x])/dy[y, x]
                         else:
-                            dVdy[t,y,x] = (data[t,y+1,x] - data[t,y-1,x])/(2*dy[y])
+                            dVdy[t,y,x] = (data[t,y+1,x] - data[t,y-1,x])/(2*dy[y, x])
             # Edges always forward or backwards differencing
             for x in range(len(field.lon)):
-                dVdy[t, 0, x] = (data[t, 1, x] - data[t, 0, x]) / dy[0]
-                dVdy[t, len(field.lat)-1, x] = (data[t, len(field.lat)-1, x] - data[t, len(field.lat)-2, x]) / dy[len(field.lat)-2]
+                dVdy[t, 0, x] = (data[t, 1, x] - data[t, 0, x]) / dy[0, x]
+                dVdy[t, len(field.lat)-1, x] = (data[t, len(field.lat)-1, x] - data[t, len(field.lat)-2, x]) / dy[len(field.lat)-2, x]
             for y in range(len(field.lat)):
-                dVdx[t, y, 0] = (data[t, y, 1] - data[t, y, 0]) / dx[y]
-                dVdx[t, y, len(field.lon)-1] = (data[t, y, len(field.lon)-1] - data[t, y, len(field.lon)-2]) / dx[y]
+                dVdx[t, y, 0] = (data[t, y, 1] - data[t, y, 0]) / dx[y, x]
+                dVdx[t, y, len(field.lon)-1] = (data[t, y, len(field.lon)-1] - data[t, y, len(field.lon)-2]) / dx[y, x]
 
     return Field('d' + field.name + '_dx', dVdx, field.lon, field.lat, field.depth, field.time, \
                  interp_method=field.interp_method, allow_time_extrapolation=field.allow_time_extrapolation),\
@@ -120,7 +120,7 @@ def Create_Landmask(grid, lim=1e-26):
     pbar = ProgressBar()
     for i in pbar(range(nx)):
         for j in range(1, ny-1):
-            if isshallow(np.abs(grid.bathy.data[0, 1, j, i]), lim):
+            if isshallow(np.abs(grid.bathy.data[0, 2, j, i]), lim):
                 mask[i,j] = 2
             if isocean(grid.H.data[0, j, i],lim):  # For each land point
                 mask[i,j] = 1
