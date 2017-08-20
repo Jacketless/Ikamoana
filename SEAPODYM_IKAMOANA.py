@@ -91,15 +91,15 @@ def SIMPLEDYM_SIM(Ufilestem, Vfilestem, Hfilestem, startD=None,
         advect = fishset.Kernel(Advection_C)
         taxis = fishset.Kernel(TaxisRK4)#fishset.Kernel(GradientRK4_C)
         #combinedadvection = fishset.Kernel(CurrentAndTaxisRK4)
-        move = fishset.Kernel(Move)
-        landcheck = fishset.Kernel(MoveOffLand)
+        move = fishset.Kernel(MoveWithLandCheck)
+        #landcheck = fishset.Kernel(MoveOffLand)
         sampH = fishset.Kernel(SampleH)
         moveeast = fishset.Kernel(MoveEast)
         movewest = fishset.Kernel(MoveWest)
         print("Executing kernels...")
         #end_time = 15*24*60*60 if m == start_month else 30*24*60*60
         run_time = 30*24*60*60
-        fishset.execute(age + advect + taxis + diffuse + move + landcheck + sampH, starttime=fishset[0].time, runtime=run_time, dt=timestep,
+        fishset.execute(age + advect + taxis + diffuse + move + sampH, starttime=fishset[0].time, runtime=run_time, dt=timestep,
                         output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
         #fishset.execute(age + advect + taxis + diffuse + move + landcheck + sampH, starttime=grid.U.time[0], endtime=grid.U.time[0]+30*24*60*60, dt=timestep,
         #                output_file=results_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})

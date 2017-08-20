@@ -356,6 +356,61 @@ def Update(particle, fieldset, time, dt):
     particle.update()
 
 
+def MoveWithLandCheck(particle, fieldset, time, dt):
+    if particle.active == 1:
+        particle.prev_lon = particle.lon
+        particle.prev_lat = particle.lat
+        adv_x = particle.Ax + particle.Vx
+        adv_y = particle.Ay + particle.Vy
+        if adv_x > 2:
+            adv_x = 2
+        if adv_y > 2:
+            adv_y = 2
+        onland = 1
+        loop_count = 0
+        while onland > 0:
+            #print('in loop %s' % loop_count)
+            move_x = adv_x + particle.Dx + particle.Cx
+            move_y = adv_y + particle.Dy + particle.Cy
+            onland = 0
+            particle.lon += move_x/4
+            particle.lat += move_y/4
+            onland += fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
+            particle.lon += move_x/4
+            particle.lat += move_y/4
+            onland += fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
+            particle.lon += move_x/4
+            particle.lat += move_y/4
+            onland += fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
+            particle.lon += move_x/4
+            particle.lat += move_y/4
+            onland += fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
+            if onland > 0:
+                #print("got an onland %s" % loop_count)
+                particle.lon = particle.prev_lon
+                particle.lat = particle.prev_lat
+                to_lat = 1 / 1000. / 1.852 / 60.
+                to_lon = to_lat / math.cos(particle.lat*math.pi/180)
+                r_var = 1/3.
+                Rx = random.uniform(-1., 1.)
+                Ry = random.uniform(-1., 1.)
+                dKdx, dKdy = (fieldset.dK_dx[time, particle.lon, particle.lat, particle.depth], fieldset.dK_dy[time, particle.lon, particle.lat, particle.depth])
+                Kfield = fieldset.K[time, particle.lon, particle.lat, particle.depth]
+                Rx_component = Rx * math.sqrt(2 * Kfield * dt / r_var) * to_lon
+                Ry_component = Ry * math.sqrt(2 * Kfield * dt / r_var) * to_lat
+                CorrectionX = dKdx * dt * to_lon
+                CorrectionY = dKdy * dt * to_lat
+                particle.Dx = Rx_component
+                particle.Dy = Ry_component
+                particle.Cx = CorrectionX
+                particle.Cy = CorrectionY
+                loop_count += 1
+                particle.In_Loop += 1
+                if loop_count > 500:
+                    onland = 0
+                    particle.active = 0
+
+
 def Move(particle, fieldset, time, dt):
     if particle.active == 1:
         #to_lat = 1 / 1000. / 1.852 / 60.
@@ -364,8 +419,16 @@ def Move(particle, fieldset, time, dt):
         #print("Ay=%s Dy=%s Cy=%s Vy=%s dHdy=%s at time %s" % (particle.Ay , particle.Dy, particle.Cy, particle.Vy, particle.dHdy, time))
         particle.prev_lon = particle.lon
         particle.prev_lat = particle.lat
-        particle.lon += particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
-        particle.lat += particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
+        adv_x = particle.Ax + particle.Vx
+        adv_y = particle.Ay + particle.Vy
+
+        if adv_x > 2:
+            adv_x = 2
+        if adv_y > 2:
+            adv_y = 2
+
+        particle.lon += adv_x + (particle.Dx + particle.Cx)# * to_lon
+        particle.lat += adv_y + (particle.Dy + particle.Cy)# * to_lat
         #particle.lon += particle.Ax + particle.Vx
         #particle.lat += particle.Ay + particle.Vy
         #particle.lon += Dx + Cx

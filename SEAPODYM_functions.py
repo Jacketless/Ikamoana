@@ -11,13 +11,15 @@ from progressbar import ProgressBar
 from glob import glob
 
 
-def getGradient(field, landmask=None):
+def getGradient(field, landmask=None, shallow_sea_zero=True):
     dx, dy = field.cell_distances()
     data = field.data
     dVdx = np.zeros(data.shape, dtype=np.float32)
     dVdy = np.zeros(data.shape, dtype=np.float32)
     if landmask is not None:
         landmask = np.transpose(landmask.data[0,:,:])
+        if shallow_sea_zero is False:
+            landmask[np.where(landmask == 2)] = 0
         for t in range(len(field.time)):
             for x in range(1, len(field.lon)-1):
                 for y in range(1, len(field.lat)-1):
@@ -289,7 +291,7 @@ def Create_SEAPODYM_Grid(forcing_files, startD=None, startD_dims=None,
     #K_gradients = grid.K.gradient()
     #for field in K_gradients:
     #    grid.add_field(field)
-    dKdx, dKdy = getGradient(grid.K, grid.LandMask)
+    dKdx, dKdy = getGradient(grid.K, grid.LandMask, False)
     grid.add_field(dKdx)
     grid.add_field(dKdy)
     grid.K.interp_method = grid.dK_dx.interp_method = grid.dK_dy.interp_method = grid.H.interp_method = \
@@ -556,6 +558,7 @@ def getSEAPODYMarguments(run="SEAPODYM_2003"):
                                           'H': 'skipjack_habitat_index',
                                           'start': 'skipjack_cohort_20021015_density_M0',
                                           'E': 'P3'}})
+        args.update({'LandMaskFile': 'SEAPODYM_Forcing_Data/Latest/PHYSICAL/2003Run/2003run_PHYS_month01.nc'})
         args.update({'Filestems': {'U': 'm',
                                    'V': 'm',
                                    'H': 'd'}})
@@ -564,8 +567,7 @@ def getSEAPODYMarguments(run="SEAPODYM_2003"):
                                  'TaxisRK4',
                                  'FishingMortality',
                                  'NaturalMortality',
-                                 'Move',
-                                 'MoveOffLand',
+                                 'MoveWithLandCheck',
                                  'AgeAnimal']})
 
     if run == "DiffusionTest":
