@@ -110,7 +110,7 @@ def getPopFromDensityField(grid, density_field='Start'):
     return total_fish
 
 
-def Create_Landmask(grid, lim=1e-26):
+def Create_Landmask(grid, lim=1e-45):
     def isocean(p, lim):
         return 1 if p < lim else 0
     def isshallow(p, lim):
