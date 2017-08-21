@@ -183,8 +183,8 @@ def TaxisRK4(particle, fieldset, time, dt):
         u4, v4 = (fieldset.Tx[time + dt, lon3, lat3, particle.depth], fieldset.Ty[time + dt, lon3, lat3, particle.depth])
         Vx = (u1 + 2*u2 + 2*u3 + u4) / 6.
         Vy = (v1 + 2*v2 + 2*v3 + v4) / 6.
-        particle.Vx = Vx * f_lat
-        particle.Vy = Vy * f_lon
+        Vx = Vx * f_lat
+        Vy = Vy * f_lon
 
 
 def CurrentAndTaxisRK4(particle, fieldset, time, dt):
@@ -241,10 +241,10 @@ def LagrangianDiffusion(particle, fieldset, time, dt):
         CorrectionY = dKdy * dt * to_lat
         #print(Rx_component)
         #print(Ry_component)
-        particle.Dx = Rx_component
-        particle.Dy = Ry_component
-        particle.Cx = CorrectionX
-        particle.Cy = CorrectionY
+        Dx = Rx_component
+        Dy = Ry_component
+        Cx = CorrectionX
+        Cy = CorrectionY
         #Dx = Rx_component
         #Dy = Ry_component
         #Cx = CorrectionX
@@ -276,8 +276,8 @@ def Advection_C(particle, fieldset, time, dt):
         u4, v4 = (fieldset.U[time + dt, lon3, lat3, particle.depth], fieldset.V[time + dt, lon3, lat3, particle.depth])
         Ax = (u1 + 2*u2 + 2*u3 + u4) / 6.
         Ay = (v1 + 2*v2 + 2*v3 + v4) / 6.
-        particle.Ax = Ax * dt# / to_lon #Convert back to m/s so we save to particle file in a usual format
-        particle.Ay = Ay * dt# / to_lat
+        Ax = Ax * dt# / to_lon #Convert back to m/s so we save to particle file in a usual format
+        Ay = Ay * dt# / to_lat
 
 
 def RandomWalkDiffusion(particle, fieldset, time, dt):
@@ -303,9 +303,9 @@ def UndoMove(particle, fieldset, time, dt):
     print("from: %s | %s" % (particle.lon, particle.lat))
     temp_lon = particle.lon
     temp_lat = particle.lat
-    particle.lon -= particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
-    particle.lat -= particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
-    particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
+    particle.lon = particle.prev_lon
+    particle.lat = particle.prev_lat
+    #particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
     #particle.lon = 200
     #particle.lat = 0
     print("to:   %s | %s" % (particle.lon, particle.lat))
@@ -344,7 +344,7 @@ def MoveOffLand(particle, fieldset, time, dt):
             #print("onland now = %s" % onland)
             count += 1
             particle.In_Loop += 1
-            if count > 500:
+            if count > 100:
                 particle.lon -= particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
                 particle.lat -= particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
                 particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
@@ -360,8 +360,8 @@ def MoveWithLandCheck(particle, fieldset, time, dt):
     if particle.active == 1:
         particle.prev_lon = particle.lon
         particle.prev_lat = particle.lat
-        adv_x = particle.Ax + particle.Vx
-        adv_y = particle.Ay + particle.Vy
+        adv_x = Ax + Vx
+        adv_y = Ay + Vy
         if adv_x > 2:
             adv_x = 2
         if adv_y > 2:
@@ -370,21 +370,16 @@ def MoveWithLandCheck(particle, fieldset, time, dt):
         loop_count = 0
         while onland > 0:
             #print('in loop %s' % loop_count)
-            move_x = adv_x + particle.Dx + particle.Cx
-            move_y = adv_y + particle.Dy + particle.Cy
+            move_x = adv_x + Dx + Cx
+            move_y = adv_y + Dy + Cy
             onland = 0
-            particle.lon += move_x/4
-            particle.lat += move_y/4
-            onland += fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
-            particle.lon += move_x/4
-            particle.lat += move_y/4
-            onland += fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
-            particle.lon += move_x/4
-            particle.lat += move_y/4
-            onland += fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
-            particle.lon += move_x/4
-            particle.lat += move_y/4
-            onland += fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
+            jump_loop = 0
+            while jump_loop < 8:
+                particle.lon += move_x/8
+                particle.lat += move_y/8
+                onland += fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
+                jump_loop += 1
+
             if onland > 0:
                 #print("got an onland %s" % loop_count)
                 particle.lon = particle.prev_lon
@@ -400,15 +395,29 @@ def MoveWithLandCheck(particle, fieldset, time, dt):
                 Ry_component = Ry * math.sqrt(2 * Kfield * dt / r_var) * to_lat
                 CorrectionX = dKdx * dt * to_lon
                 CorrectionY = dKdy * dt * to_lat
-                particle.Dx = Rx_component
-                particle.Dy = Ry_component
-                particle.Cx = CorrectionX
-                particle.Cy = CorrectionY
+                Dx = Rx_component
+                Dy = Ry_component
+                Cx = CorrectionX
+                Cy = CorrectionY
                 loop_count += 1
                 particle.In_Loop += 1
-                if loop_count > 500:
+                if loop_count > 100:
                     onland = 0
-                    particle.active = 0
+                    particle.lon = particle.prev_lon
+                    particle.lat = particle.prev_lat
+            else:
+                if particle.prev_lat < -8.5 and particle.lat > -8.5:
+                    if particle.prev_lon < 146.5 and particle.lon > 146.5:
+                        onland = 1 # Hardcoded check for illegal Coral to Solomon Sea moves
+                elif particle.lat < -8.5 and particle.prev_lat > -8.5:
+                    if particle.lon < 146.5 and particle.prev_lon > 146.5:
+                        onland = 1 # Hardcoded check for illegal Coral to Solomon Sea moves
+                if particle.prev_lat > -5.5 and particle.lat < -5.5:
+                    if particle.prev_lon < 150.5 and particle.lon > 150.5:
+                        onland = 1 # Hardcoded check for illegal Bismarck to Solomon Sea moves
+                elif particle.lat > -5.5 and particle.prev_lat < -5.5:
+                    if particle.lon < 150.5 and particle.prev_lon > 150.5:
+                        onland = 1 # Hardcoded check for illegal Bismarck to Solomon Sea moves
 
 
 def Move(particle, fieldset, time, dt):

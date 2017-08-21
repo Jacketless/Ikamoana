@@ -143,21 +143,21 @@ def Create_Particle_Class(type=JITParticle):
         #Vmax = Variable('Vmax', to_write=False, dtype=np.float32)
         #Dv_max = Variable('Dv_max', to_write=False)
         fish = Variable('fish', to_write=False)
-        H = Variable('H', to_write=True, dtype=np.float32)
-        dHdx = Variable('dHdx', to_write=True, dtype=np.float32)
-        dHdy = Variable('dHdy', to_write=True, dtype=np.float32)
-        Dx = Variable('Dx', to_write=True, dtype=np.float32)
-        Dy = Variable('Dy', to_write=True, dtype=np.float32)
-        Cx = Variable('Cx', to_write=True, dtype=np.float32)
-        Cy = Variable('Cy', to_write=True, dtype=np.float32)
-        Vx = Variable('Vx', to_write=True, dtype=np.float32)
-        Vy = Variable('Vy', to_write=True, dtype=np.float32)
-        Ax = Variable('Ax', to_write=True, dtype=np.float32)
-        Ay = Variable('Ay', to_write=True, dtype=np.float32)
+        H = Variable('H', to_write=False, dtype=np.float32)
+        dHdx = Variable('dHdx', to_write=False, dtype=np.float32)
+        dHdy = Variable('dHdy', to_write=False, dtype=np.float32)
+        # Dx = Variable('Dx', to_write=False, dtype=np.float32)
+        # Dy = Variable('Dy', to_write=False, dtype=np.float32)
+        # Cx = Variable('Cx', to_write=False, dtype=np.float32)
+        # Cy = Variable('Cy', to_write=False, dtype=np.float32)
+        # Vx = Variable('Vx', to_write=False, dtype=np.float32)
+        # Vy = Variable('Vy', to_write=False, dtype=np.float32)
+        # Ax = Variable('Ax', to_write=False, dtype=np.float32)
+        # Ay = Variable('Ay', to_write=False, dtype=np.float32)
         In_Loop = Variable('In_Loop', to_write=True, dtype=np.float32)
-        taxis_scale = Variable('taxis_scale', to_write=False)
-        prev_lon = Variable('prev_lon', to_write=False)
-        prev_lat = Variable('prev_lat', to_write=False)
+        #taxis_scale = Variable('taxis_scale', to_write=False)
+        prev_lon = Variable('prev_lon', to_write=True)
+        prev_lat = Variable('prev_lat', to_write=True)
 
         def __init__(self, *args, **kwargs):
             """Custom initialisation function which calls the base
@@ -165,8 +165,9 @@ def Create_Particle_Class(type=JITParticle):
             super(SEAPODYM_SKJ, self).__init__(*args, **kwargs)
             self.setAge(4.)
             self.fish = 100000
-            self.H = self.Dx = self.Dy = self.Cx = self.Cy = self.Vx = self.Vy = self.Ax = self.Ay = 0.0
-            self.taxis_scale = 1
+            #self.H = self.Dx = self.Dy = self.Cx = self.Cy = self.Vx = self.Vy = self.Ax = self.Ay = 0.0
+            self.H = 0.0
+            #self.taxis_scale = 1
             self.active = 1
             self.In_Loop = 0
 
