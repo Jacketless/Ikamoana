@@ -311,9 +311,7 @@ def UndoMove(particle, fieldset, time, dt):
     print("to:   %s | %s" % (particle.lon, particle.lat))
     if particle.lon == temp_lon and particle.lat == temp_lat:
         print("Positions are the same, seems particle got stuck... ################## DISABLING PARTICLE ############################# ")
-        particle.lon = particle.prev_lon
-        particle.lat = particle.prev_lat
-
+        particle.active = 0
 
 def MoveOffLand(particle, fieldset, time, dt):
     onland = fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
