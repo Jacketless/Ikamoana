@@ -310,7 +310,7 @@ def UndoMove(particle, fieldset, time, dt):
     #particle.lat = 0
     print("to:   %s | %s" % (particle.lon, particle.lat))
     if particle.lon == temp_lon and particle.lat == temp_lat:
-        print("Positions are the same! Using particle saved previous positions...")
+        print("Positions are the same, seems particle got stuck... ################## DISABLING PARTICLE ############################# ")
         particle.lon = particle.prev_lon
         particle.lat = particle.prev_lat
 
