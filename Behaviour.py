@@ -3,18 +3,43 @@ import numpy as np
 import math
 
 
-def SampleH(particle, grid, time, dt):
-    particle.H = grid.H[time, particle.lon, particle.lat]
-    particle.dHdx = grid.dH_dx[time, particle.lon, particle.lat]
-    particle.dHdy = grid.dH_dy[time, particle.lon, particle.lat]
+def SampleH(particle, fieldset, time, dt):
+    particle.H = fieldset.H[time, particle.lon, particle.lat, particle.depth]
+    particle.dHdx = fieldset.dH_dx[time, particle.lon, particle.lat, particle.depth]
+    particle.dHdy = fieldset.dH_dy[time, particle.lon, particle.lat, particle.depth]
 
 
-def CheckRelease(particle, grid, time, dt):
+def CheckRelease(particle, fieldset, time, dt):
     if time > particle.release_time:
         particle.active = 1
 
 
-def AgeParticle(particle, grid, time, dt):
+def FishingMortality(particle, fieldset, time, dt):
+    Fmor = (1-(fieldset.F[time, particle.lon, particle.lat, particle.depth] * (dt/(30*24*60*60))))
+    particle.school = particle.school * Fmor
+    particle.depletionF = Fmor
+
+
+def NaturalMortality(particle, fieldset, time, dt):
+    MPmax=0.3
+    MPexp=0.1008314958945224
+    MSmax=0.006109001382111822
+    MSslope=0.8158285706493162
+    Mrange=0.00001430156
+    Mnat = MPmax*math.exp(-MPexp*particle.monthly_age) + MSmax*math.pow(particle.monthly_age, MSslope)
+    Mvar = Mnat * math.pow(1 - Mrange, 1-fieldset.H[time, particle.lon, particle.lat, particle.depth]/2)
+    Nmor = (1 - (Mvar * (dt/(30*24*60*60))))
+    particle.school = particle.school * Nmor
+    particle.depletionN = Nmor
+
+
+def AgeAnimal(particle, fieldset, time, dt):
+    particle.age += dt
+    if (particle.age - (particle.monthly_age*30*24*60*60)) > (30*24*60*60):
+        particle.monthly_age += 1
+
+
+def AgeParticle(particle, fieldset, time, dt):
     #print("Ageing")
     particle.age += dt
     if (particle.age - (particle.monthly_age*30*24*60*60)) > (30*24*60*60):
@@ -36,12 +61,12 @@ def AgeParticle(particle, grid, time, dt):
         # MSslope=0.8158285706493162
         # Mrange=0.00001430156
         # Mnat = MPmax*math.exp(-1*MPexp*particle.age) + MSmax*math.pow(particle.age, MSslope)
-        # Hexp = 1-grid.H[time, particle.lon, particle.lat]/2
-        # Mvar = Mnat * math.pow((1 - Mrange), Hexp)#(1-grid.H[time, lon, lat]))#/2))
+        # Hexp = 1-fieldset.H[time, particle.lon, particle.lat, particle.depth]/2
+        # Mvar = Mnat * math.pow((1 - Mrange), Hexp)#(1-fieldset.H[time, lon, lat]))#/2))
         # particle.fish *= 1-Mvar  #particle.fish *= 1-Mortality_C(particle.monthly_age, particle.H)
 
 
-def AgeIndividual(particle, grid, time, dt):
+def AgeIndividual(particle, fieldset, time, dt):
     #print("Ageing")
     particle.age += dt
     if (particle.age - (particle.monthly_age*30*24*60*60)) > (30*24*60*60):
@@ -65,8 +90,8 @@ def AgeIndividual(particle, grid, time, dt):
         MSslope=0.8158285706493162
         Mrange=0.00001430156
         Mnat = MPmax*math.exp(-1*MPexp*particle.age) + MSmax*math.pow(particle.age, MSslope)
-        Hexp = 1-grid.H[time, particle.lon, particle.lat]/2
-        Mvar = Mnat * math.pow((1 - Mrange), Hexp)#(1-grid.H[time, lon, lat]))#/2))
+        Hexp = 1-fieldset.H[time, particle.lon, particle.lat, particle.depth]/2
+        Mvar = Mnat * math.pow((1 - Mrange), Hexp)#(1-fieldset.H[time, lon, lat, particle.depth]))#/2))
         if random.uniform(0, 1) > Mvar:
             particle.active = 0
             particle.release_time = 100000000*100000000 #Particle will not be reactivated
@@ -77,101 +102,101 @@ def AgeIndividual(particle, grid, time, dt):
 def RK4(fieldx, fieldy, lon, lat, time, dt):
     f_lat = dt / 1000. / 1.852 / 60.
     f_lon = f_lat / math.cos(lat*math.pi/180)
-    u1 = fieldx[time, lon, lat]
-    v1 = fieldy[time, lon, lat]
+    u1 = fieldx[time, lon, lat, particle.depth]
+    v1 = fieldy[time, lon, lat, particle.depth]
     lon1, lat1 = (lon + u1*.5*f_lon, lat + v1*.5*f_lat)
     #print('lon1 = %s, lat1 = %s' % (lon1, lat1))
-    u2, v2 = (fieldx[time + .5 * dt, lon1, lat1], fieldy[time + .5 * dt, lon1, lat1])
+    u2, v2 = (fieldx[time + .5 * dt, lon1, lat1, particle.depth], fieldy[time + .5 * dt, lon1, lat1, particle.depth])
     lon2, lat2 = (lon + u2*.5*f_lon, lat + v2*.5*f_lat)
     #print('lon2 = %s, lat2 = %s' % (lon2, lat2))
-    u3, v3 = (fieldx[time + .5 * dt, lon2, lat2], fieldy[time + .5 * dt, lon2, lat2])
+    u3, v3 = (fieldx[time + .5 * dt, lon2, lat2, particle.depth], fieldy[time + .5 * dt, lon2, lat2, particle.depth])
     lon3, lat3 = (lon + u3*f_lon, lat + v3*f_lat)
     #print('lon3 = %s, lat3 = %s' % (lon3, lat3))
-    u4, v4 = (fieldx[time + dt, lon3, lat3], fieldy[time + dt, lon3, lat3])
+    u4, v4 = (fieldx[time + dt, lon3, lat3, particle.depth], fieldy[time + dt, lon3, lat3, particle.depth])
     Vx = (u1 + 2*u2 + 2*u3 + u4) / 6.
     Vy = (v1 + 2*v2 + 2*v3 + v4) / 6.
     return [Vx, Vy]
 
 
 def RK4alt(fieldx, fieldy, lon, lat, time, dt):
-    u1 = fieldx[time, lon, lat]
-    v1 = fieldy[time, lon, lat]
+    u1 = fieldx[time, lon, lat, particle.depth]
+    v1 = fieldy[time, lon, lat, particle.depth]
     lon1, lat1 = (lon + u1*.5*dt, lat + v1*.5*dt)
     #print('lon1 = %s, lat1 = %s' % (lon1, lat1))
-    u2, v2 = (fieldx[time + .5 * dt, lon1, lat1], fieldy[time + .5 * dt, lon1, lat1])
+    u2, v2 = (fieldx[time + .5 * dt, lon1, lat1, particle.depth], fieldy[time + .5 * dt, lon1, lat1, particle.depth])
     lon2, lat2 = (lon + u2*.5*dt, lat + v2*.5*dt)
     #print('lon2 = %s, lat2 = %s' % (lon2, lat2))
-    u3, v3 = (fieldx[time + .5 * dt, lon2, lat2], fieldy[time + .5 * dt, lon2, lat2])
+    u3, v3 = (fieldx[time + .5 * dt, lon2, lat2, particle.depth], fieldy[time + .5 * dt, lon2, lat2, particle.depth])
     lon3, lat3 = (lon + u3*dt, lat + v3*dt)
     #print('lon3 = %s, lat3 = %s' % (lon3, lat3))
-    u4, v4 = (fieldx[time + dt, lon3, lat3], fieldy[time + dt, lon3, lat3])
+    u4, v4 = (fieldx[time + dt, lon3, lat3, particle.depth], fieldy[time + dt, lon3, lat3, particle.depth])
     Vx = (u1 + 2*u2 + 2*u3 + u4) / 6.
     Vy = (v1 + 2*v2 + 2*v3 + v4) / 6.
     return [Vx, Vy]
 
 
-def GradientRK4(particle, grid, time, dt):
+def GradientRK4(particle, fieldset, time, dt):
     #print('Taxis')
     to_lat = 1 / 1000. / 1.852 / 60.
     to_lon = to_lat / math.cos(particle.lat*math.pi/180)
-    V = RK4(grid.dH_dx, grid.dH_dy, particle.lon, particle.lat, time, dt)
-    #V = [grid.dH_dx[time,particle.lon,particle.lat], grid.dH_dy[time,particle.lon,particle.lat]]
+    V = RK4(fieldset.dH_dx, fieldset.dH_dy, particle.lon, particle.lat, time, dt)
+    #V = [fieldset.dH_dx[time,particle.lon,particle.lat, particle.depth], fieldset.dH_dy[time,particle.lon,particle.lat, particle.depth]]
     particle.Vx = V[0] * particle.Vmax * dt * (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * to_lon
     particle.Vy = V[1] * particle.Vmax * dt * (1000*1.852*60) * to_lat
 
 
-def GradientRK4_C(particle, grid, time, dt):
+def GradientRK4_C(particle, fieldset, time, dt):
     if particle.active == 1:
         f_lat = dt / 1000. / 1.852 / 60.
         f_lon = f_lat / math.cos(particle.lat*math.pi/180)
         ## Something about the below RK4 of dH_dx that C doesn't like (referencing odd field values??)
-        # u1 = grid.dH_dx[time, particle.lon, particle.lat]
-        # v1 = grid.dH_dy[time, particle.lon, particle.lat]
+        # u1 = fieldset.dH_dx[time, particle.lon, particle.lat, particle.depth]
+        # v1 = fieldset.dH_dy[time, particle.lon, particle.lat, particle.depth]
         # lon1, lat1 = (particle.lon + u1*.5*f_lon, particle.lat + v1*.5*f_lat)
         # #print('lon1 = %s, lat1 = %s' % (lon1, lat1))
-        # u2, v2 = (grid.dH_dx[time + .5 * dt, lon1, lat1], grid.dH_dy[time + .5 * dt, lon1, lat1])
+        # u2, v2 = (fieldset.dH_dx[time + .5 * dt, lon1, lat1, particle.depth], fieldset.dH_dy[time + .5 * dt, lon1, lat1, particle.depth])
         # lon2, lat2 = (particle.lon + u2*.5*f_lon, particle.lat + v2*.5*f_lat)
         # #print('lon2 = %s, lat2 = %s' % (lon2, lat2))
-        # u3, v3 = (grid.dH_dx[time + .5 * dt, lon2, lat2], grid.dH_dy[time + .5 * dt, lon2, lat2])
+        # u3, v3 = (fieldset.dH_dx[time + .5 * dt, lon2, lat2, particle.depth], fieldset.dH_dy[time + .5 * dt, lon2, lat2, particle.depth])
         # lon3, lat3 = (particle.lon + u3*f_lon, particle.lat + v3*f_lat)
         # #print('lon3 = %s, lat3 = %s' % (lon3, lat3))
-        # u4, v4 = (grid.dH_dx[time + dt, lon3, lat3], grid.dH_dy[time + dt, lon3, lat3])
+        # u4, v4 = (fieldset.dH_dx[time + dt, lon3, lat3, particle.depth], fieldset.dH_dy[time + dt, lon3, lat3, particle.depth])
         # Vx = (u1 + 2*u2 + 2*u3 + u4) / 6.
         # Vy = (v1 + 2*v2 + 2*v3 + v4) / 6.
-        particle.Vx = grid.dH_dx[time, particle.lon, particle.lat] * particle.Vmax * (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * particle.taxis_scale * f_lon
-        particle.Vy = grid.dH_dy[time, particle.lon, particle.lat] * particle.Vmax * (1000*1.852*60) * particle.taxis_scale * f_lat
+        particle.Vx = fieldset.dH_dx[time, particle.lon, particle.lat, particle.depth] * particle.Vmax * (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * particle.taxis_scale * f_lon
+        particle.Vy = fieldset.dH_dy[time, particle.lon, particle.lat, particle.depth] * particle.Vmax * (1000*1.852*60) * particle.taxis_scale * f_lat
         #particle.Vx = Vx #* particle.Vmax #* (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * f_lon
         #particle.Vy = Vy #* particle.Vmax * (1000*1.852*60) * f_lat
 
 
-def TaxisRK4(particle, grid, time, dt):
+def TaxisRK4(particle, fieldset, time, dt):
     if particle.active == 1:
         f_lat = dt / 1000. / 1.852 / 60.
         f_lon = f_lat / math.cos(particle.lat*math.pi/180)
-        u1 = grid.Tx[time, particle.lon, particle.lat]
-        v1 = grid.Ty[time, particle.lon, particle.lat]
+        u1 = fieldset.Tx[time, particle.lon, particle.lat, particle.depth]
+        v1 = fieldset.Ty[time, particle.lon, particle.lat, particle.depth]
         lon1, lat1 = (particle.lon + u1*.5*f_lon, particle.lat + v1*.5*f_lat)
-        u2, v2 = (grid.Tx[time + .5 * dt, lon1, lat1], grid.Ty[time + .5 * dt, lon1, lat1])
+        u2, v2 = (fieldset.Tx[time + .5 * dt, lon1, lat1, particle.depth], fieldset.Ty[time + .5 * dt, lon1, lat1, particle.depth])
         lon2, lat2 = (particle.lon + u2*.5*f_lon, particle.lat + v2*.5*f_lat)
-        u3, v3 = (grid.Tx[time + .5 * dt, lon2, lat2], grid.Ty[time + .5 * dt, lon2, lat2])
+        u3, v3 = (fieldset.Tx[time + .5 * dt, lon2, lat2, particle.depth], fieldset.Ty[time + .5 * dt, lon2, lat2, particle.depth])
         lon3, lat3 = (particle.lon + u3*f_lon, particle.lat + v3*f_lat)
-        u4, v4 = (grid.Tx[time + dt, lon3, lat3], grid.Ty[time + dt, lon3, lat3])
+        u4, v4 = (fieldset.Tx[time + dt, lon3, lat3, particle.depth], fieldset.Ty[time + dt, lon3, lat3, particle.depth])
         Vx = (u1 + 2*u2 + 2*u3 + u4) / 6.
         Vy = (v1 + 2*v2 + 2*v3 + v4) / 6.
-        particle.Vx = Vx * f_lat
-        particle.Vy = Vy * f_lon
+        Vx = Vx * f_lat
+        Vy = Vy * f_lon
 
 
-def CurrentAndTaxisRK4(particle, grid, time, dt):
+def CurrentAndTaxisRK4(particle, fieldset, time, dt):
     if particle.active == 1:
-        u1 = grid.TU[time, particle.lon, particle.lat]
-        v1 = grid.TV[time, particle.lon, particle.lat]
+        u1 = fieldset.TU[time, particle.lon, particle.lat, particle.depth]
+        v1 = fieldset.TV[time, particle.lon, particle.lat, particle.depth]
         lon1, lat1 = (particle.lon + u1*.5*dt, particle.lat + v1*.5*dt)
-        u2, v2 = (grid.TU[time + .5 * dt, lon1, lat1], grid.TV[time + .5 * dt, lon1, lat1])
+        u2, v2 = (fieldset.TU[time + .5 * dt, lon1, lat1, particle.depth], fieldset.TV[time + .5 * dt, lon1, lat1, particle.depth])
         lon2, lat2 = (particle.lon + u2*.5*dt, particle.lat + v2*.5*dt)
-        u3, v3 = (grid.TU[time + .5 * dt, lon2, lat2], grid.TV[time + .5 * dt, lon2, lat2])
+        u3, v3 = (fieldset.TU[time + .5 * dt, lon2, lat2, particle.depth], fieldset.TV[time + .5 * dt, lon2, lat2, particle.depth])
         lon3, lat3 = (particle.lon + u3*dt, particle.lat + v3*dt)
-        u4, v4 = (grid.TU[time + dt, lon3, lat3], grid.TV[time + dt, lon3, lat3])
+        u4, v4 = (fieldset.TU[time + dt, lon3, lat3, particle.depth], fieldset.TV[time + dt, lon3, lat3, particle.depth])
         Vx = (u1 + 2*u2 + 2*u3 + u4) / 6.
         Vy = (v1 + 2*v2 + 2*v3 + v4) / 6.
         particle.Ax = Vx * dt
@@ -180,20 +205,20 @@ def CurrentAndTaxisRK4(particle, grid, time, dt):
         particle.Vy = 0
 
 
-def FishDensityClimber(particle, grid, time, dt):
+def FishDensityClimber(particle, fieldset, time, dt):
     if particle.active == 1:
         f_lat3 = dt / 1000. / 1.852 / 60.
         f_lon3 = f_lat3 / math.cos(particle.lat*math.pi/180)
-        particle.Vx = grid.dFishDensity_dx[time, particle.lon, particle.lat] * \
+        particle.Vx = fieldset.dFishDensity_dx[time, particle.lon, particle.lat, particle.depth] * \
                       particle.Vmax * (1000*1.852*60 * math.cos(particle.lat*math.pi/180)) * \
-                      particle.taxis_scale * f_lon3 #* grid.MaxDensity
-        particle.Vy = grid.dFishDensity_dy[time, particle.lon, particle.lat] * \
+                      particle.taxis_scale * f_lon3 #* fieldset.MaxDensity
+        particle.Vy = fieldset.dFishDensity_dy[time, particle.lon, particle.lat, particle.depth] * \
                       particle.Vmax * (1000*1.852*60) * \
-                      particle.taxis_scale * f_lat3 #* grid.MaxDensity
+                      particle.taxis_scale * f_lat3 #* fieldset.MaxDensity
         print("Vx= %s  Vy= %s" % (particle.Vx, particle.Vy))
 
 
-def LagrangianDiffusion(particle, grid, time, dt):
+def LagrangianDiffusion(particle, fieldset, time, dt):
     if particle.active == 1:
         to_lat = 1 / 1000. / 1.852 / 60.
         to_lon = to_lat / math.cos(particle.lat*math.pi/180)
@@ -202,63 +227,67 @@ def LagrangianDiffusion(particle, grid, time, dt):
         #Ry = np.random.uniform(-1., 1.)
         Rx = random.uniform(-1., 1.)
         Ry = random.uniform(-1., 1.)
-        #dK  = RK4(grid.dK_dx, grid.dK_dy, particle.lon, particle.lat, time, dt)
-        dKdx, dKdy = (grid.dK_dx[time, particle.lon, particle.lat], grid.dK_dy[time, particle.lon, particle.lat])
+        #dK  = RK4(fieldset.dK_dx, fieldset.dK_dy, particle.lon, particle.lat, time, dt)
+        dKdx, dKdy = (fieldset.dK_dx[time, particle.lon, particle.lat, particle.depth], fieldset.dK_dy[time, particle.lon, particle.lat, particle.depth])
         #half_dx = 0.5 * dKdx * dt * to_lon
         #half_dy = 0.5 * dKdy * dt * to_lat
         #print(particle.lon + half_dx)
         #print(particle.lat + half_dy)
-        #K = RK4(grid.K, grid.K, particle.lon + half_dx, particle.lat + half_dy, time, dt)
-        Kfield = grid.K[time, particle.lon, particle.lat]
+        #K = RK4(fieldset.K, fieldset.K, particle.lon + half_dx, particle.lat + half_dy, time, dt)
+        Kfield = fieldset.K[time, particle.lon, particle.lat, particle.depth]
         Rx_component = Rx * math.sqrt(2 * Kfield * dt / r_var) * to_lon
         Ry_component = Ry * math.sqrt(2 * Kfield * dt / r_var) * to_lat
         CorrectionX = dKdx * dt * to_lon
         CorrectionY = dKdy * dt * to_lat
         #print(Rx_component)
         #print(Ry_component)
-        particle.Dx = Rx_component
-        particle.Dy = Ry_component
-        particle.Cx = CorrectionX
-        particle.Cy = CorrectionY
+        Dx = Rx_component
+        Dy = Ry_component
+        Cx = CorrectionX
+        Cy = CorrectionY
+        #Dx = Rx_component
+        #Dy = Ry_component
+        #Cx = CorrectionX
+        #Cy = CorrectionY
 
 
-def Advection(particle, grid, time, dt):
+def Advection(particle, fieldset, time, dt):
     if particle.active == 1:
-        physical_forcing = RK4alt(grid.U, grid.V, particle.lon, particle.lat, time, dt)
+        physical_forcing = RK4alt(fieldset.U, fieldset.V, particle.lon, particle.lat, time, dt)
         particle.Ax = physical_forcing[0] * dt
         particle.Ay = physical_forcing[1] * dt
 
 
-def Advection_C(particle, grid, time, dt):
+def Advection_C(particle, fieldset, time, dt):
     #print("Advection")
     if particle.active == 1:
         #to_lat = 1 / 1000. / 1.852 / 60.
         #to_lon = to_lat / math.cos(particle.lat*math.pi/180)
-        u1 = grid.U[time, particle.lon, particle.lat]
-        v1 = grid.V[time, particle.lon, particle.lat]
+        u1 = fieldset.U[time, particle.lon, particle.lat, particle.depth]
+        v1 = fieldset.V[time, particle.lon, particle.lat, particle.depth]
         lon1, lat1 = (particle.lon + u1*.5*dt, particle.lat + v1*.5*dt)
         #print('lon1 = %s, lat1 = %s' % (lon1, lat1))
-        u2, v2 = (grid.U[time + .5 * dt, lon1, lat1], grid.V[time + .5 * dt, lon1, lat1])
+        u2, v2 = (fieldset.U[time + .5 * dt, lon1, lat1, particle.depth], fieldset.V[time + .5 * dt, lon1, lat1, particle.depth])
         lon2, lat2 = (particle.lon + u2*.5*dt, particle.lat + v2*.5*dt)
         #print('lon2 = %s, lat2 = %s' % (lon2, lat2))
-        u3, v3 = (grid.U[time + .5 * dt, lon2, lat2], grid.V[time + .5 * dt, lon2, lat2])
+        u3, v3 = (fieldset.U[time + .5 * dt, lon2, lat2, particle.depth], fieldset.V[time + .5 * dt, lon2, lat2, particle.depth])
         lon3, lat3 = (particle.lon + u3*dt, particle.lat + v3*dt)
         #print('lon3 = %s, lat3 = %s' % (lon3, lat3))
-        u4, v4 = (grid.U[time + dt, lon3, lat3], grid.V[time + dt, lon3, lat3])
+        u4, v4 = (fieldset.U[time + dt, lon3, lat3, particle.depth], fieldset.V[time + dt, lon3, lat3, particle.depth])
         Ax = (u1 + 2*u2 + 2*u3 + u4) / 6.
         Ay = (v1 + 2*v2 + 2*v3 + v4) / 6.
-        particle.Ax = Ax * dt# / to_lon #Convert back to m/s so we save to particle file in a usual format
-        particle.Ay = Ay * dt# / to_lat
+        Ax = Ax * dt# / to_lon #Convert back to m/s so we save to particle file in a usual format
+        Ay = Ay * dt# / to_lat
 
 
-def RandomWalkDiffusion(particle, grid, time, dt):
+def RandomWalkDiffusion(particle, fieldset, time, dt):
     to_lat = 1 / 1000. / 1.852 / 60.
     to_lon = to_lat / math.cos(particle.lat*math.pi/180)
-    dK = RK4(grid.dK_dx, grid.dK_dy, particle.lon, particle.lat, time, dt)
+    dK = RK4(fieldset.dK_dx, fieldset.dK_dy, particle.lon, particle.lat, time, dt)
     half_dx = 0.5 * dK[0] * to_lon * dt
     half_dy = 0.5 * dK[1] * to_lat * dt
     Rand = np.random.uniform(0, 1.)
-    K_at_half = RK4(grid.K, grid.K, particle.lon + half_dx, particle.lat + half_dy, time, dt)[0]
+    K_at_half = RK4(fieldset.K, fieldset.K, particle.lon + half_dx, particle.lat + half_dy, time, dt)[0]
     R = Rand * K_at_half * dt #np.sqrt(4 * K_at_half * dt)
     angle = np.random.uniform(0, 2*np.pi)
     CorrectionX = dK[0] * dt * to_lon
@@ -269,35 +298,34 @@ def RandomWalkDiffusion(particle, grid, time, dt):
     particle.Dy = R*np.sin(angle) * to_lat
 
 
-def UndoMove(particle):
+def UndoMove(particle, fieldset, time, dt):
     print("UndoMove triggered! Moving particle")
     print("from: %s | %s" % (particle.lon, particle.lat))
     temp_lon = particle.lon
     temp_lat = particle.lat
-    particle.lon -= particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
-    particle.lat -= particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
-    particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
+    particle.lon = particle.prev_lon
+    particle.lat = particle.prev_lat
+    #particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
     #particle.lon = 200
     #particle.lat = 0
     print("to:   %s | %s" % (particle.lon, particle.lat))
     if particle.lon == temp_lon and particle.lat == temp_lat:
-        print("Positions are the same! Using particle saved previous positions...")
-        particle.lon = particle.prev_lon
-        particle.lat = particle.prev_lat
+        print("Positions are the same, seems particle got stuck... ################## DISABLING PARTICLE ############################# ")
+        particle.active = 0
 
-
-def MoveOffLand(particle, grid, time, dt):
-    onland = grid.LandMask[0, particle.lon, particle.lat]
-    if onland > 0:
+def MoveOffLand(particle, fieldset, time, dt):
+    onland = fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
+    if onland == 1:
         oldlon = particle.lon - particle.Ax - particle.Dx - particle.Cx - particle.Vx
         oldlat = particle.lat - particle.Ay - particle.Dy - particle.Cy - particle.Vy
         lat_convert = 1 / 1000. / 1.852 / 60.
         lon_convert = to_lat / math.cos(oldlat*math.pi/180)
-        Kfield_new = grid.K[time, oldlon, oldlat]
+        Kfield_new = fieldset.K[time, oldlon, oldlat, particle.depth]
         r_var_new = 1/3.
         Dx_component = math.sqrt(2 * Kfield_new * dt / r_var_new) * lon_convert
         Dy_component = math.sqrt(2 * Kfield_new * dt / r_var_new) * lat_convert
         count = 0
+        particle.In_Loop = 0
         while onland > 0:
             #return ErrorCode.ErrorOutOfBounds
             #print("particle on land at %s|%s" % (particle.lon, particle.lat))
@@ -309,11 +337,12 @@ def MoveOffLand(particle, grid, time, dt):
             particle.Dy = Dy_component * Ry_new
             particle.lon += particle.Dx
             particle.lat += particle.Dy
-            onland = grid.LandMask[0, particle.lon, particle.lat]
+            onland = fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
             #print("attempting move to %s|%s" % (particle.lon, particle.lat))
             #print("onland now = %s" % onland)
             count += 1
-            if count > 500:
+            particle.In_Loop += 1
+            if count > 100:
                 particle.lon -= particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
                 particle.lat -= particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
                 particle.Ax = particle.Ay = particle.Dx = particle.Dy = particle.Cx = particle.Cy = particle.Vx = particle.Vy = 0.0
@@ -321,11 +350,75 @@ def MoveOffLand(particle, grid, time, dt):
 
 
 # Kernel to call a generic particle update function
-def Update(particle, grid, time, dt):
+def Update(particle, fieldset, time, dt):
     particle.update()
 
 
-def Move(particle, grid, time, dt):
+def MoveWithLandCheck(particle, fieldset, time, dt):
+    if particle.active == 1:
+        particle.prev_lon = particle.lon
+        particle.prev_lat = particle.lat
+        adv_x = Ax + Vx
+        adv_y = Ay + Vy
+        if adv_x > 2:
+            adv_x = 2
+        if adv_y > 2:
+            adv_y = 2
+        onland = 1
+        loop_count = 0
+        while onland > 0:
+            #print('in loop %s' % loop_count)
+            move_x = adv_x + Dx + Cx
+            move_y = adv_y + Dy + Cy
+            onland = 0
+            jump_loop = 0
+            while jump_loop < 8:
+                particle.lon += move_x/8
+                particle.lat += move_y/8
+                onland += fieldset.LandMask[0, particle.lon, particle.lat, particle.depth]
+                jump_loop += 1
+
+            if onland > 0:
+                #print("got an onland %s" % loop_count)
+                particle.lon = particle.prev_lon
+                particle.lat = particle.prev_lat
+                to_lat = 1 / 1000. / 1.852 / 60.
+                to_lon = to_lat / math.cos(particle.lat*math.pi/180)
+                r_var = 1/3.
+                Rx = random.uniform(-1., 1.)
+                Ry = random.uniform(-1., 1.)
+                dKdx, dKdy = (fieldset.dK_dx[time, particle.lon, particle.lat, particle.depth], fieldset.dK_dy[time, particle.lon, particle.lat, particle.depth])
+                Kfield = fieldset.K[time, particle.lon, particle.lat, particle.depth]
+                Rx_component = Rx * math.sqrt(2 * Kfield * dt / r_var) * to_lon
+                Ry_component = Ry * math.sqrt(2 * Kfield * dt / r_var) * to_lat
+                CorrectionX = dKdx * dt * to_lon
+                CorrectionY = dKdy * dt * to_lat
+                Dx = Rx_component
+                Dy = Ry_component
+                Cx = CorrectionX
+                Cy = CorrectionY
+                loop_count += 1
+                particle.In_Loop += 1
+                if loop_count > 100:
+                    onland = 0
+                    particle.lon = particle.prev_lon
+                    particle.lat = particle.prev_lat
+            else:
+                if particle.prev_lat < -8.5 and particle.lat > -8.5:
+                    if particle.prev_lon < 146.5 and particle.lon > 146.5:
+                        onland = 1 # Hardcoded check for illegal Coral to Solomon Sea moves
+                elif particle.lat < -8.5 and particle.prev_lat > -8.5:
+                    if particle.lon < 146.5 and particle.prev_lon > 146.5:
+                        onland = 1 # Hardcoded check for illegal Coral to Solomon Sea moves
+                if particle.prev_lat > -5.5 and particle.lat < -5.5:
+                    if particle.prev_lon < 150.5 and particle.lon > 150.5:
+                        onland = 1 # Hardcoded check for illegal Bismarck to Solomon Sea moves
+                elif particle.lat > -5.5 and particle.prev_lat < -5.5:
+                    if particle.lon < 150.5 and particle.prev_lon > 150.5:
+                        onland = 1 # Hardcoded check for illegal Bismarck to Solomon Sea moves
+
+
+def Move(particle, fieldset, time, dt):
     if particle.active == 1:
         #to_lat = 1 / 1000. / 1.852 / 60.
         #to_lon = to_lat / math.cos(particle.lat*math.pi/180)
@@ -333,20 +426,40 @@ def Move(particle, grid, time, dt):
         #print("Ay=%s Dy=%s Cy=%s Vy=%s dHdy=%s at time %s" % (particle.Ay , particle.Dy, particle.Cy, particle.Vy, particle.dHdy, time))
         particle.prev_lon = particle.lon
         particle.prev_lat = particle.lat
-        particle.lon += particle.Ax + (particle.Dx + particle.Cx + particle.Vx)# * to_lon
-        particle.lat += particle.Ay + (particle.Dy + particle.Cy + particle.Vy)# * to_lat
+        adv_x = particle.Ax + particle.Vx
+        adv_y = particle.Ay + particle.Vy
+
+        if adv_x > 2:
+            adv_x = 2
+        if adv_y > 2:
+            adv_y = 2
+
+        particle.lon += adv_x + (particle.Dx + particle.Cx)# * to_lon
+        particle.lat += adv_y + (particle.Dy + particle.Cy)# * to_lat
+        #particle.lon += particle.Ax + particle.Vx
+        #particle.lat += particle.Ay + particle.Vy
+        #particle.lon += Dx + Cx
+        #particle.lat += Dy + Cy
 
 
 # Some simple movement kernels for testing purposes:
-def MoveEast(particle, grid, time, dt):
+def MoveEast(particle, fieldset, time, dt):
     if particle.active == 1:
         to_lat = 1 / 1000. / 1.852 / 60.
         to_lon = to_lat / math.cos(particle.lat*math.pi/180)
         particle.lon += 3 * dt * to_lon
 
 
-def MoveWest(particle, grid, time, dt):
+def MoveWest(particle, fieldset, time, dt):
     if particle.active == 1:
         to_lat = 1 / 1000. / 1.852 / 60.
         to_lon = to_lat / math.cos(particle.lat*math.pi/180)
         particle.lon -= 3 * dt * to_lon
+
+
+def RegionBound(particle, fieldset, time, dt):
+    if particle.active == 1:
+        if fieldset.minlon > particle.lon or fieldset.maxlon < particle.lon:
+            particle.active = 0
+        if fieldset.minlat > particle.lat or fieldset.maxlat < particle.lat:
+            particle.active = 0
