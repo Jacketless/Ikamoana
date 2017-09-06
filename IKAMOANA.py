@@ -11,6 +11,7 @@ import datetime
 def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
              individuals=100, timestep=86400, T=30, density_timestep=None,
              Forcing_Variables={'H':'habitat'}, Forcing_Dimensions={'lon':'longitude', 'lat':'latitude', 'time':'time'},
+             Landmask_File=None,
              Kernels=['Advection_C', 'TaxisRK4', 'LagrangianDiffusion', 'Move'], mode='jit',
              start_age=4, starttime=1042588800, output_density=False, output_grid=False, output_trajectory=True, random_seed=None,
              output_filestem='IKAMOANA'
@@ -28,28 +29,31 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
     # Create the forcing fieldset grid for the simulation
     ocean = FieldSet.from_netcdf(filenames=Forcing_Files, variables=Forcing_Variables, dimensions=Forcing_Dimensions,
                              vmin=-200, vmax=1e5, allow_time_extrapolation=True)
+    print(Forcing_Files['U'])
+    Depthdata = Field.from_netcdf('u', dimensions={'lon': 'longitude', 'lat': 'latitude', 'time': 'time', 'depth': 'depth'},
+                                     filenames=Landmask_File, allow_time_extrapolation=True)
+    Depthdata.name = 'bathy'
+    ocean.add_field(Depthdata)
+    ocean.add_field(Create_Landmask(ocean))
 
     if 'TaxisRK4' in Kernels:
-        T_grads = ocean.H.gradient()
-        ocean.add_field(T_grads[0])
-        ocean.add_field(T_grads[1])
+        dHdx, dHdy = getGradient(ocean.H, ocean.LandMask) #ocean.H.gradient()
+        ocean.add_field(dHdx)
+        ocean.add_field(dHdy)
         t_fields = Create_SEAPODYM_Taxis_Fields(ocean.dH_dx, ocean.dH_dy)
         ocean.add_field(t_fields[0])
         ocean.add_field(t_fields[1])
     if 'LagrangianDiffusion' in Kernels:
         if not hasattr(ocean, 'dH_dx'):
-            grads = ocean.H.gradient()
-            ocean.add_field(grads[0])
-            ocean.add_field(grads[1])
+            dHdx, dHdy = getGradient(ocean.H, ocean.LandMask)
+            ocean.add_field(dHdx)
+            ocean.add_field(dHdy)
         ocean.add_field(Create_SEAPODYM_Diffusion_Field(ocean.H, timestep=timestep))
-        K_grads = ocean.K.gradient()
-        ocean.add_field(K_grads[0])
-        ocean.add_field(K_grads[1])
+        dKdx, dKdy = getGradient(ocean.K, ocean.LandMask, False)
+        ocean.add_field(dKdx)
+        ocean.add_field(dKdy)
     if 'FishingMortality' in Kernels:
         ocean.add_field(Create_SEAPODYM_F_Field(ocean.E))
-
-    if 'MoveOffLand' in Kernels:
-        ocean.add_field(Create_Landmask(ocean))
 
     if output_grid:
         ocean.write(output_filestem)
@@ -73,6 +77,7 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
                   'NaturalMortality':NaturalMortality,
                   'Move': Move,
                   'MoveOffLand': MoveOffLand,
+                  'MoveWithLandCheck': MoveWithLandCheck,
                   'AgeAnimal':AgeAnimal}
     KernelList = []
     KernelString = []
@@ -94,7 +99,7 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
         Density_data = np.zeros((len(sim_steps)+1, len(ocean.U.lat),len(ocean.U.lon)))
         print(np.shape(Density_data))
         Density = Field('Density', Density_data, ocean.U.lon, ocean.U.lat, time=np.append(sim_steps,start_time+sim_time+timestep))
-        Density.data[0,:,:] = np.transpose(animalset.density(field=ocean.U, particle_val='school'))
+        Density.data[0,:,:] = animalset.density(field=ocean.U, particle_val='school')
     else:
         outer_timestep = sim_time
         sim_steps = np.arange(start_time, start_time+sim_time+1, outer_timestep)
@@ -109,7 +114,7 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
                           output_file=trajectory_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
         if density_timestep is not None:
             print(np.where(sim_steps == step)[0]+1)
-            Density.data[np.where(sim_steps == step)[0]+1,:,:] = np.transpose(animalset.density(field=ocean.U, particle_val='school'))
+            Density.data[np.where(sim_steps == step)[0]+1,:,:] = animalset.density(field=ocean.U, particle_val='school')
     if density_timestep is not None:
         Density.write(output_filestem)
 
@@ -224,7 +229,7 @@ if __name__ == "__main__":
         temp_args = getSEAPODYMarguments(args.run)
         for arg in temp_args.keys():
             IKAMOANA_Args[arg] = temp_args[arg]
-        print(IKAMOANA_Args)
+        #print(IKAMOANA_Args)
 
     if args.start_point is not None:
         IKAMOANA_Args['startpoint'] = [[],[]]
@@ -237,6 +242,7 @@ if __name__ == "__main__":
 
     IKAMOANA(Forcing_Files=IKAMOANA_Args['ForcingFiles'], Forcing_Variables=IKAMOANA_Args['ForcingVariables'], individuals=args.particles,
              T=args.time,timestep=args.timestep, Kernels=IKAMOANA_Args['Kernels'], density_timestep=args.density_timestep,
+             Landmask_File=IKAMOANA_Args['LandMaskFile'],
              Init_Positions=None if 'startpoint' not in IKAMOANA_Args else IKAMOANA_Args['startpoint'], mode=args.mode,
              output_grid=args.write_grid, output_trajectory=args.write_particles,  output_filestem=args.output,
              starttime=IKAMOANA_Args['start_time'], start_age=IKAMOANA_Args['start_age'])
