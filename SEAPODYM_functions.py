@@ -9,6 +9,7 @@ from datetime import datetime
 from py import path
 from progressbar import ProgressBar
 from glob import glob
+from xml.dom import minidom
 
 
 def getGradient(field, landmask=None, shallow_sea_zero=True):
@@ -122,7 +123,8 @@ def Create_Landmask(grid, lim=1e-45):
     pbar = ProgressBar()
     for i in pbar(range(nx)):
         for j in range(1, ny-1):
-            if isshallow(np.abs(grid.bathy.data[0, 2, j, i]), lim):
+            #if isshallow(np.abs(grid.bathy.data[0, 2, j, i]), lim):
+            if isshallow(np.abs(grid.bathy.data[0, j, i]), lim):
                 mask[i,j] = 2
             if isocean(grid.H.data[0, j, i],lim):  # For each land point
                 mask[i,j] = 1
@@ -132,7 +134,7 @@ def Create_Landmask(grid, lim=1e-45):
     return Mask#ClosestLon, ClosestLat
 
 
-def Create_SEAPODYM_F_Field(E, start_age=4, q=0.001032652877899101, selectivity_func=3, mu= 52.56103941719986, sigma=8.614813906820441, r_asymp=0.2456242856428466):
+def Create_SEAPODYM_F_Field(E, name='F', start_age=4, q=0.001032652877899101, selectivity_func=3, mu= 52.56103941719986, sigma=8.614813906820441, r_asymp=0.2456242856428466):
     F_Data = np.zeros(np.shape(E.data), dtype=np.float32)
     age = start_age
     for t in range(E.time.size):
@@ -146,10 +148,11 @@ def Create_SEAPODYM_F_Field(E, start_age=4, q=0.001032652877899101, selectivity_
 
         print("Age = %s months, Length = %scm, Selectivity = %s" % (age, l, Selectivity))
         F_Data[t,:,:] = E.data[t,:,:] * q * Selectivity
-    return(Field('F', F_Data, E.lon, E.lat, time=E.time, interp_method='nearest'))
+    return(Field(name, F_Data, E.lon, E.lat, time=E.time, interp_method='nearest'))
 
 
-def Create_SEAPODYM_Taxis_Fields(dHdx, dHdy, start_age=4, taxis_scale=1, units='m_per_s'):
+def Create_SEAPODYM_Taxis_Fields(dHdx, dHdy, start_age=4, taxis_scale=1, units='m_per_s',
+                                 vmax_a=2.225841100458143, vmax_b=0.8348850216641774):
     Tx = np.zeros(np.shape(dHdx.data), dtype=np.float32)
     Ty = np.zeros(np.shape(dHdx.data), dtype=np.float32)
     months = start_age
@@ -161,13 +164,13 @@ def Create_SEAPODYM_Taxis_Fields(dHdx, dHdy, start_age=4, taxis_scale=1, units='
         if units is 'nm_per_mon':
             for x in range(dHdx.lon.size):
                 for y in range(dHdx.lat.size):
-                    Tx[t, y, x] = V_max(months)*((30*24*60*60)/1852) * dHdx.data[t, y, x] * taxis_scale * (1000*1.852*60 * math.cos(dHdx.lat[y]*math.pi/180)) * 1/(60*60*24*30)
-                    Ty[t, y, x] = V_max(months)*((30*24*60*60)/1852) * dHdy.data[t, y, x] * taxis_scale * (1000*1.852*60) * 1/(60*60*24*30)
+                    Tx[t, y, x] = V_max(months, vmax_a, vmax_b)*((30*24*60*60)/1852) * dHdx.data[t, y, x] * taxis_scale * (1000*1.852*60 * math.cos(dHdx.lat[y]*math.pi/180)) * 1/(60*60*24*30)
+                    Ty[t, y, x] = V_max(months, vmax_a, vmax_b)*((30*24*60*60)/1852) * dHdy.data[t, y, x] * taxis_scale * (1000*1.852*60) * 1/(60*60*24*30)
         else:
             for x in range(dHdx.lon.size):
                 for y in range(dHdx.lat.size):
-                    Tx[t, y, x] = V_max(months) * dHdx.data[t, y, x] * taxis_scale * (1000*1.852*60 * math.cos(dHdx.lat[y]*math.pi/180))# / ((1 / 1000. / 1.852 / 60.) / math.cos(dHdx.lat[y]*math.pi/180))
-                    Ty[t, y, x] = V_max(months) * dHdy.data[t, y, x] * taxis_scale * (1000*1.852*60)#/ (1 / 1000. / 1.852 / 60.)
+                    Tx[t, y, x] = V_max(months, vmax_a, vmax_b) * dHdx.data[t, y, x] * taxis_scale * (1000*1.852*60 * math.cos(dHdx.lat[y]*math.pi/180))# / ((1 / 1000. / 1.852 / 60.) / math.cos(dHdx.lat[y]*math.pi/180))
+                    Ty[t, y, x] = V_max(months, vmax_a, vmax_b) * dHdy.data[t, y, x] * taxis_scale * (1000*1.852*60)#/ (1 / 1000. / 1.852 / 60.)
 
     return [Field('Tx', Tx, dHdx.lon, dHdx.lat, time=dHdx.time, interp_method='nearest', allow_time_extrapolation=True),
             Field('Ty', Ty, dHdx.lon, dHdx.lat, time=dHdx.time, interp_method='nearest', allow_time_extrapolation=True)]
@@ -185,7 +188,7 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=30*24*60*60, sigma=0.17699528649
         # Increase age in months if required, to incorporate appropriate Vmax
         # months in SEAPODYM are all assumed to be 30 days long
         #age = H.time[t] - H.time[0] + start_age*30*24*60*60 # this is for 'true' ageing
-        age = (start_age+t)*30*24*60*60
+        age = (start_age*30*24*60*60) + H.time[t] - H.time[0] #(start_age+t)*30*24*60*60
         if age - (months*30*24*60*60) >= (30*24*60*60):
             months += 1
         if verbose:
@@ -195,6 +198,7 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=30*24*60*60, sigma=0.17699528649
             Dmax = (np.power(GetLengthFromAge(months)*((30*24*60*60)/1852), 2) / 4 ) * timestep/(60*60*24*30) #vmax = L for diffusion
         else:
             Dmax = (np.power(GetLengthFromAge(months), 2) / 4) * timestep  #fixed b parameter for diffusion
+        print("Sigma = %s, Dmax = %s" % (sigma, Dmax))
         sig_D = sigma * Dmax
         for x in range(H.lon.size):
             for y in range(H.lat.size):
@@ -203,13 +207,42 @@ def Create_SEAPODYM_Diffusion_Field(H, timestep=30*24*60*60, sigma=0.17699528649
     return Field('K', K, H.lon, H.lat, time=H.time, interp_method='nearest', allow_time_extrapolation=True)
 
 
+def readSEAPODYM_parfile(file):
+    variables = ['sigma_species', 'c_diff_fish', 'MSS_species', 'MSS_size_slope',  # movement params
+                 'Mp_mean_max', 'Mp_mean_exp', 'Ms_mean_max', 'Ms_mean_slope', 'M_mean_range']  # mortality params
+    if file is not None:
+        parfile = minidom.parse(file)
+        SEAPODYM_Params = {}
+        for var in variables:
+            v = parfile.getElementsByTagName(var)
+            SEAPODYM_Params[var] = float(v[0].attributes['skj'].value)
+        # Fishery parameters
+        F_names = parfile.getElementsByTagName('list_fishery_name')
+        SEAPODYM_Params['Fisheries'] = str(F_names[0].firstChild.nodeValue).split()
+        SEAPODYM_Params['Q'] = {}
+        Q = parfile.getElementsByTagName('q_sp_fishery')
+        for f in SEAPODYM_Params['Fisheries']:
+            SEAPODYM_Params[f] = {}
+            SEAPODYM_Params[f]['q'] = float(Q[0].getElementsByTagName(f)[0].attributes['skj'].value)
+        S = parfile.getElementsByTagName('s_sp_fishery')
+        for f in SEAPODYM_Params['Fisheries']:
+            SEAPODYM_Params[f].update({'mu': float(S[0].getElementsByTagName(f)[0].attributes['skj'].value)})
+            SEAPODYM_Params[f]['function_type'] = float(S[0].getElementsByTagName(f)[0].getElementsByTagName('function_type')[0].attributes['value'].value)
+            SEAPODYM_Params[f]['length_threshold'] = float(S[0].getElementsByTagName(f)[0].getElementsByTagName('length_threshold')[0].attributes['skj'].value)
+            SEAPODYM_Params[f]['right_asymptote'] = float(S[0].getElementsByTagName(f)[0].getElementsByTagName('length_threshold')[0].attributes['skj'].value)
+    else:  # Some defaults
+        SEAPODYM_Params = {'sigma_species': 0.1769952864978924, 'c_diff_fish': 0.662573993401526,
+                           'MSS_species': 2.225841100458143, 'MSS_size_slope': 0.8348850216641774}
+    return SEAPODYM_Params
+
+
 def Create_SEAPODYM_Grid(forcing_files, startD=None, startD_dims=None,
                          forcing_vars={'U': 'u', 'V': 'v', 'H': 'habitat'},
                          forcing_dims={'lon': 'lon', 'lat': 'lon', 'time': 'time'}, K_timestep=30*24*60*60,
                          diffusion_file=None, field_units='m_per_s',
                          diffusion_dims={'lon': 'longitude', 'lat': 'latitude', 'time': 'time', 'data': 'skipjack_diffusion_rate'},
                          scaleH=None, start_age=4, output_density=False, diffusion_scale=1, sig_scale=1, c_scale=1,
-                         verbose=False):
+                         parameter_file=None, verbose=False):
     if startD_dims is None:
         startD_dims = forcing_dims
     if verbose:
@@ -246,6 +279,8 @@ def Create_SEAPODYM_Grid(forcing_files, startD=None, startD_dims=None,
         grid.H.data /= np.max(grid.H.data)
         grid.H.data[np.where(grid.H.data < 0)] = 0
         grid.H.data *= scaleH
+
+    # SEAPODYM Specific fields
 
     # Offline calculate the 'diffusion' grid as a function of habitat
     if verbose:
