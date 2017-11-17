@@ -20,14 +20,14 @@ def delaystart(particle, grid, time, dt):
 
 def delayedAdvectionRK4(particle, grid, time, dt):
     if particle.active > 0:
-        u1 = grid.U[time, particle.lon, particle.lat]
-        v1 = grid.V[time, particle.lon, particle.lat]
+        u1 = grid.U[time, particle.lon, particle.lat, particle.depth]
+        v1 = grid.V[time, particle.lon, particle.lat, particle.depth]
         lon1, lat1 = (particle.lon + u1*.5*dt, particle.lat + v1*.5*dt)
-        u2, v2 = (grid.U[time + .5 * dt, lon1, lat1], grid.V[time + .5 * dt, lon1, lat1])
+        u2, v2 = (grid.U[time + .5 * dt, lon1, lat1, particle.depth], grid.V[time + .5 * dt, lon1, lat1, particle.depth])
         lon2, lat2 = (particle.lon + u2*.5*dt, particle.lat + v2*.5*dt)
-        u3, v3 = (grid.U[time + .5 * dt, lon2, lat2], grid.V[time + .5 * dt, lon2, lat2])
+        u3, v3 = (grid.U[time + .5 * dt, lon2, lat2, particle.depth], grid.V[time + .5 * dt, lon2, lat2, particle.depth])
         lon3, lat3 = (particle.lon + u3*dt, particle.lat + v3*dt)
-        u4, v4 = (grid.U[time + dt, lon3, lat3], grid.V[time + dt, lon3, lat3])
+        u4, v4 = (grid.U[time + dt, lon3, lat3, particle.depth], grid.V[time + dt, lon3, lat3, particle.depth])
         particle.prev_lon = particle.lon
         particle.prev_lat = particle.lat
         particle.lon += (u1 + 2*u2 + 2*u3 + u4) / 6. * dt
