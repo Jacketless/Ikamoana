@@ -97,7 +97,7 @@ def advanceGrid1Month(grid, gridnew, days):
 
 
 def EvenFADRelease(filenames, variables, dimensions, fad_density,
-                   timestep=21600, time=3, seed_timestep=7, start_time=757382400, start_field_res=None,
+                   timestep=21600, time=3, seed_timestep=7, start_time=757382400, start_field_res=None, start_limits=[110, 290, -20, 20],
                    output_file='FADRelease', mode='scipy', first_file_date=757382400, shift=0,
                    write_density=True):
 
@@ -126,7 +126,8 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
 
     grid.add_constant("FAD_duration", 14*30*24*60*60)
 
-    StartField = createEvenStartingDistribution(grid, field='U' if start_field_res is None else start_field_res)
+    StartField = createEvenStartingDistribution(grid, field='U' if start_field_res is None else start_field_res,
+                                                lon_range=start_limits[[0,1]], lat_range=start_limit[[2,3]])
     StartField.write(output_file)
     deployment_cells = np.count_nonzero(StartField.data)
     print(np.count_nonzero(StartField.data))
@@ -224,6 +225,8 @@ if __name__ == "__main__":
                    help='Resolution in degrees for start field grid')
     p.add_argument('-l', '--location', type=float, nargs=2, default=[180,0],
                    help='Release location (lon,lat)')
+    p.add_argument('-lm', '--limits', type=float, nargs=4, default=[110, 290, -20, 20],
+                   help='Lon/lat limits for the even release start field')
     p.add_argument('-wd', '--write_density', type=str, default='True',
                    help='Boolean for whether to calculate and write density of FADs at runtime')
     p.add_argument('-r', '--raijin_run', type=str, default='False',
