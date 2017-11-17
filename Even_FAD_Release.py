@@ -76,7 +76,7 @@ def loadBRANgrid(Ufilenames, Vfilenames,
 
 def createEvenStartingDistribution(grid, field='U', lon_range=[110, 290], lat_range=[-20,20]):
     if isinstance(field, basestring):
-        data = np.zeros(np.shape(getattr(grid, field).data[[0,1],:,:]), dtype=np.float32)
+        data = np.zeros(np.shape(getattr(grid, field).data[[0,1],0,:,:]), dtype=np.float32)
         lats = getattr(grid, field).lat
         lons = getattr(grid, field).lon
     else:
@@ -94,7 +94,7 @@ def createEvenStartingDistribution(grid, field='U', lon_range=[110, 290], lat_ra
             land_cells = []
             for gx in grid_x:
                 for gy in grid_y:
-                    land_cells.append(isOcean(grid.U.data[0,gy,gx]))
+                    land_cells.append(isOcean(grid.U.data[0,0,gy,gx]))
             data[0,y,x] = np.any(land_cells)
     return Field('start', data, lons, lats, time=np.arange(2, dtype=np.float32))
 
