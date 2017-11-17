@@ -246,7 +246,7 @@ if __name__ == "__main__":
                    help='Release location (lon,lat)')
     p.add_argument('-lm', '--limits', type=float, nargs=4, default=[110, 290, -20, 20],
                    help='Lon/lat limits for the even release start field')
-    p.add_argument('-wd', '--write_density', type=str, default='True',
+    p.add_argument('-wd', '--write_density', type=str, default='False',
                    help='Boolean for whether to calculate and write density of FADs at runtime')
     p.add_argument('-r', '--raijin_run', type=str, default='False',
                    help='Raijin run boolean, defaults to False (true will overwrite filename locations etc.')
