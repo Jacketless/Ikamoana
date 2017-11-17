@@ -50,9 +50,27 @@ def loadBRANgrid(Ufilenames, Vfilenames,
                  'V': Vfilenames}
     print("loading grid files:")
     print(filenames)
-    grid = FieldSet.from_netcdf(filenames, vars, dims, indices={'lat': range(250,1250), 'lon': range(1000, 2900)})
+    grid = FieldSet.from_netcdf(filenames, vars, dims,
+                                indices={'lat': range(250,1250), 'lon': range(1000, 2900), 'depth': range(0,9)})
     grid.U.time += shift
     grid.V.time += shift
+
+    #integrate top depth layers
+    d = [0, 2.5, 7.5, 12.5, 17.515390396118164, 22.667020797729492,
+         28.16938018798828, 34.2180061340332, 40.95497512817383, 48.45497512817383]
+    weights = np.diff(d)
+    print("First layer sample = %s" % grid.U.data[0, 0, 500, 500])
+    all_depths = grid.U.data[:, d, :, :]
+    for d in range(len(weights)):
+        all_depths *= weights[d]
+    print("After weighting = %s" % all_depths[0, 0, 500, 500])
+    grid.U.data[:, 0, :, :] = np.sum(all_depths, axis=1)/sum(weights)
+    print("First layer sample = %s" % grid.V.data[0, 0, 500, 500])
+    all_depths = grid.V.data[:, d, :, :]
+    for d in range(len(weights)):
+        all_depths *= weights[d]
+    print("After weighting = %s" % all_depths[0, 0, 500, 500])
+    grid.V.data[:, 0, :, :] = np.sum(all_depths, axis=1) / sum(weights)
     return grid
 
 
@@ -137,8 +155,8 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
     ParticleClass = JITParticle if mode == 'jit' else ScipyParticle
 
     class FAD(ParticleClass):
-        deployed = Variable('deployed', dtype=np.float32, to_write=True)
-        active = Variable('active', dtype=np.float32, to_write=True)
+        deployed = Variable('deployed', dtype=np.float32, to_write=False)
+        active = Variable('active', dtype=np.int32, to_write=True)
         prev_lon = Variable('prev_lon', dtype=np.float32, to_write=False)
         prev_lat = Variable('prev_lat', dtype=np.float32, to_write=False)
         #recovered = Variable('recovered', dtype=np.float32, to_write=True)
