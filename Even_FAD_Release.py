@@ -34,7 +34,7 @@ def delayedAdvectionRK4(particle, grid, time, dt):
         particle.lat += (v1 + 2*v2 + 2*v3 + v4) / 6. * dt
 
 
-def KillFAD(particle):
+def KillFAD(particle, grid, time, dt):
     if particle.active > 0:
         #print("FAD hit model bounds at %s|%s!" % (particle.lon, particle.lat))
         particle.active = -1 * particle.active
