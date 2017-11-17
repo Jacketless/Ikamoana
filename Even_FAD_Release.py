@@ -50,7 +50,7 @@ def loadBRANgrid(Ufilenames, Vfilenames,
                  'V': Vfilenames}
     print("loading grid files:")
     print(filenames)
-    grid = Grid.from_netcdf(filenames, vars, dims, indices={'lat': range(250,1250), 'lon': range(1000, 2900)})
+    grid = FieldSet.from_netcdf(filenames, vars, dims, indices={'lat': range(250,1250), 'lon': range(1000, 2900)})
     grid.U.time += shift
     grid.V.time += shift
     return grid
