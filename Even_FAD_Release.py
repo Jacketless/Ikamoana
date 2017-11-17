@@ -145,7 +145,8 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
     grid.add_constant("FAD_duration", 14*30*24*60*60)
 
     StartField = createEvenStartingDistribution(grid, field='U' if start_field_res is None else start_field_res,
-                                                lon_range=start_limits[[0,1]], lat_range=start_limit[[2,3]])
+                                                lon_range=[start_limits[0], start_limits[1]],
+                                                lat_range=[start_limits[2], start_limits[3]])
     StartField.write(output_file)
     deployment_cells = np.count_nonzero(StartField.data)
     print(np.count_nonzero(StartField.data))
