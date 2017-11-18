@@ -8,7 +8,7 @@ import calendar
 import random
 
 
-def delaystart(particle, grid, time, dt):
+def delaystart(particle, fieldset, time, dt):
     if time > particle.deployed:
         if particle.active > -1: # Has not beached or been recovered
             particle.active += 1
@@ -18,7 +18,7 @@ def delaystart(particle, grid, time, dt):
             particle.active -= 1
 
 
-def delayedAdvectionRK4(particle, grid, time, dt):
+def delayedAdvectionRK4(particle, fieldset, time, dt):
     if particle.active > 0:
         u1 = grid.U[time, particle.lon, particle.lat, particle.depth]
         v1 = grid.V[time, particle.lon, particle.lat, particle.depth]
@@ -34,7 +34,7 @@ def delayedAdvectionRK4(particle, grid, time, dt):
         particle.lat += (v1 + 2*v2 + 2*v3 + v4) / 6. * dt
 
 
-def KillFAD(particle, grid, time, dt):
+def KillFAD(particle, fieldset, time, dt):
     if particle.active > 0:
         #print("FAD hit model bounds at %s|%s!" % (particle.lon, particle.lat))
         particle.active = -1 * particle.active
@@ -158,7 +158,7 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
 
     class FAD(ParticleClass):
         deployed = Variable('deployed', dtype=np.float32, to_write=False)
-        active = Variable('active', dtype=np.int32, to_write=True)
+        active = Variable('active', dtype=np.float32, to_write=True)
         prev_lon = Variable('prev_lon', dtype=np.float32, to_write=False)
         prev_lat = Variable('prev_lat', dtype=np.float32, to_write=False)
         #recovered = Variable('recovered', dtype=np.float32, to_write=True)
