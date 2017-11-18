@@ -62,15 +62,16 @@ def loadBRANgrid(Ufilenames, Vfilenames,
     print("First layer sample = %s" % grid.U.data[0, 0, 500, 500])
     all_depths = grid.U.data[:, 0:len(weights), :, :]
     for d in range(len(weights)):
-        all_depths *= weights[d]
-    print("After weighting = %s" % all_depths[0, 0, 500, 500])
+        all_depths[:, d, :, :] *= weights[d]
     grid.U.data[:, 0, :, :] = np.sum(all_depths, axis=1)/sum(weights)
+    print("After weighting = %s" % grid.U.data[0, 0, 500, 500])
+
     print("First layer sample = %s" % grid.V.data[0, 0, 500, 500])
     all_depths = grid.V.data[:, 0:len(weights), :, :]
     for d in range(len(weights)):
-        all_depths *= weights[d]
-    print("After weighting = %s" % all_depths[0, 0, 500, 500])
+        all_depths[:, d, :, :] *= weights[d]
     grid.V.data[:, 0, :, :] = np.sum(all_depths, axis=1) / sum(weights)
+    print("After weighting = %s" % grid.V.data[0, 0, 500, 500])
     return grid
 
 
