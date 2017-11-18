@@ -150,7 +150,7 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
                                                 lat_range=[start_limits[2], start_limits[3]])
     StartField.write(output_file)
     deployment_cells = np.count_nonzero(StartField.data)
-    print(np.count_nonzero(StartField.data))
+    print("Number of cells in deployment zone = %s" %np.count_nonzero(StartField.data))
 
     abs_seeding_timestep = seed_timestep*days2secs
 
@@ -215,7 +215,7 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
             FAD_Density.data[density_index,:,:] = np.transpose(fadset.density(StartField))
             FAD_Density.write(output_file)
         days = advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions, shift), days)
-        print("grid.data size: %s-%s-%s" % (np.shape(grid.U.data)))
+        print("grid.data size: %s-%s-%s-%s" % (np.shape(grid.U.data)))
 
 
 if __name__ == "__main__":
