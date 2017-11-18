@@ -158,7 +158,7 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
 
     class FAD(ParticleClass):
         deployed = Variable('deployed', dtype=np.float32, to_write=False)
-        active = Variable('active', dtype=np.float32, to_write=True)
+        active = Variable('active', dtype=np.int16, to_write=True)
         prev_lon = Variable('prev_lon', dtype=np.float32, to_write=False)
         prev_lat = Variable('prev_lat', dtype=np.float32, to_write=False)
         #recovered = Variable('recovered', dtype=np.float32, to_write=True)
