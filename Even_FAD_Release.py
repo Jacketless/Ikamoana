@@ -198,7 +198,10 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
     FAD_Density = Field('Density', Density_Data, lon=StartField.lon, lat=StartField.lat, time=Density_Time)
 
     print("Starting Sim")
-    days = 30
+    def last_day_of_month(any_day):
+        next_month = any_day.replace(day=28) + datetime.timedelta(days=4)  # this will never fail
+        return (next_month - datetime.timedelta(days=next_month.day)).day
+    days = last_day_of_month(first_time)
     for m in range(first_month_index, last_month_index):
         print("Month %s" % m)
         start = grid.U.time[0]# + shift
@@ -214,7 +217,11 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
             print("density index = %s" % density_index)
             FAD_Density.data[density_index,:,:] = np.transpose(fadset.density(StartField))
             FAD_Density.write(output_file)
-        days = advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions, shift), days)
+        if m+3 < length(filenames): # As long as there are files for the new month, advance the grid
+            days = advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions, shift), days)
+        else: # Just cut off month during last advection loop
+            grid.data = grid.data[days:,:,:]
+            grid.time = grid.time[days:]
         print("grid.data size: %s-%s-%s-%s" % (np.shape(grid.U.data)))
 
 
