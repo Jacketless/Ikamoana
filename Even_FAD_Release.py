@@ -191,11 +191,12 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
     times = [first_time]
     for t in range(1,T):
         times.append(add_months(times[-1]))
-    Density_Time = np.array([(t - datetime(1970, 1, 1)).total_seconds() for t in times], dtype=np.float32)
-    Density_Data = np.full([len(range(first_month_index, last_month_index)), StartField.lat.size, StartField.lon.size],-1, dtype=np.float64)
-    print(Density_Time)
-    print(np.shape(Density_Data))
-    FAD_Density = Field('Density', Density_Data, lon=StartField.lon, lat=StartField.lat, time=Density_Time)
+    if write_density:
+        Density_Time = np.array([(t - datetime(1970, 1, 1)).total_seconds() for t in times], dtype=np.float32)
+        Density_Data = np.full([len(range(first_month_index, last_month_index)), StartField.lat.size, StartField.lon.size],-1, dtype=np.float64)
+        print(Density_Time)
+        print(np.shape(Density_Data))
+        FAD_Density = Field('Density', Density_Data, lon=StartField.lon, lat=StartField.lat, time=Density_Time)
 
     print("Starting Sim")
     def last_day_of_month(any_day):
