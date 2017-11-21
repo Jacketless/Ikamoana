@@ -218,7 +218,7 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
             print("density index = %s" % density_index)
             FAD_Density.data[density_index,:,:] = np.transpose(fadset.density(StartField))
             FAD_Density.write(output_file)
-        if m+3 < length(filenames): # As long as there are files for the new month, advance the grid
+        if m+3 < len(filenames): # As long as there are files for the new month, advance the grid
             days = advanceGrid1Month(grid, loadBRANgrid(filenames[0][m+3], filenames[1][m+3], variables, dimensions, shift), days)
         else: # Just cut off month during last advection loop
             grid.data = grid.data[days:,:,:]
