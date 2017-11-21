@@ -307,7 +307,7 @@ if __name__ == "__main__":
     print(args.starttime)
     print(filenames)
     EvenFADRelease(filenames, variables, dimensions, fad_density=args.density,
-                   start_field_res=args.startfield_res,
+                   start_field_res=args.startfield_res, start_limits=args.limits,
                timestep=args.timestep, time=args.time, seed_timestep=args.seed_time, start_time=args.starttime,
                output_file=output_filename, mode=args.mode,
                first_file_date=first_file, shift=shift,
