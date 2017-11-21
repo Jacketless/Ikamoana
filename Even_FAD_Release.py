@@ -200,8 +200,8 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
 
     print("Starting Sim")
     def last_day_of_month(any_day):
-        next_month = any_day.replace(day=28) + datetime.timedelta(days=4)  # this will never fail
-        return (next_month - datetime.timedelta(days=next_month.day)).day
+        next_month = any_day.replace(day=28) + timedelta(days=4)  # this will never fail
+        return (next_month - timedelta(days=next_month.day)).day
     days = last_day_of_month(first_time)
     for m in range(first_month_index, last_month_index):
         print("Month %s" % m)
