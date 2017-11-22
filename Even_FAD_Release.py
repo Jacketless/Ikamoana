@@ -81,8 +81,10 @@ def createEvenStartingDistribution(grid, field='U', lon_range=[110, 290], lat_ra
         lats = getattr(grid, field).lat
         lons = getattr(grid, field).lon
     else:
-        lons = np.round(np.arange(grid.U.lon[0], grid.U.lon[-1]+field, field, dtype=np.float32))
-        lats = np.round(np.arange(grid.U.lat[0], grid.U.lat[-1]+field, field, dtype=np.float32))
+        lons = grid.U.lon
+        lats = grid.U.lat
+        #lons = np.round(np.arange(grid.U.lon[0], grid.U.lon[-1]+field, field, dtype=np.float32))
+        #lats = np.round(np.arange(grid.U.lat[0], grid.U.lat[-1]+field, field, dtype=np.float32))
         data = np.zeros([2, len(lats), len(lons)], dtype=np.float32)
 
     def isOcean(cell, lim=1e-30):
@@ -149,7 +151,8 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
                                                 lon_range=[start_limits[0], start_limits[1]],
                                                 lat_range=[start_limits[2], start_limits[3]])
     StartField.write(output_file)
-    deployment_cells = np.count_nonzero(StartField.data)
+    grid_res = len(range(np.where(grid.U.lon == 180)[0], np.where(grid.U.lon == 181)))-1
+    deployment_cells = np.count_nonzero(StartField.data)/pow(grid_res/start_field_res, 2)
     print("Number of cells in deployment zone = %s" %np.count_nonzero(StartField.data))
 
     abs_seeding_timestep = seed_timestep*days2secs
