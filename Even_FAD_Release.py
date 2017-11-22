@@ -90,15 +90,15 @@ def createEvenStartingDistribution(grid, field='U', lon_range=[110, 290], lat_ra
     def isOcean(cell, lim=1e-30):
         return 0 if -1*lim < cell < lim else 1
 
-    for x in range(np.where(lons == lon_range[0])[0], np.where(lons == lon_range[1])[0]):
-        for y in range(np.where(lats == lat_range[0])[0], np.where(lats == lat_range[1])[0]):
-            grid_x = np.where(np.round(grid.U.lon) == lons[x])[0]
-            grid_y = np.where(np.round(grid.U.lat) == lats[y])[0]
-            land_cells = []
-            for gx in grid_x:
-                for gy in grid_y:
-                    land_cells.append(isOcean(grid.U.data[0,0,gy,gx]))
-            data[0,y,x] = np.any(land_cells)
+    for x in range(np.where(grid.U.lon == lon_range[0])[0], np.where(grid.U.lon == lon_range[1])[0]):
+        for y in range(np.where(grid.U.lat == lat_range[0])[0], np.where(grid.U.lat == lat_range[1])[0]):
+            # grid_x = np.where(np.round(grid.U.lon) == lons[x])[0]
+            # grid_y = np.where(np.round(grid.U.lat) == lats[y])[0]
+            # land_cells = []
+            # for gx in grid_x:
+            #     for gy in grid_y:
+            #         land_cells.append(isOcean(grid.U.data[0,0,gy,gx]))
+            data[0,y,x] = isOcean(grid.U.data[0,0,y,x])#np.any(land_cells)
     return Field('start', data, lons, lats, time=np.arange(2, dtype=np.float32))
 
 
@@ -151,7 +151,7 @@ def EvenFADRelease(filenames, variables, dimensions, fad_density,
                                                 lon_range=[start_limits[0], start_limits[1]],
                                                 lat_range=[start_limits[2], start_limits[3]])
     StartField.write(output_file)
-    grid_res = len(range(np.where(grid.U.lon == 180)[0], np.where(grid.U.lon == 181)))-1
+    grid_res = len(range(np.where(grid.U.lon == 180)[0], np.where(grid.U.lon == 181)[0]))-1
     deployment_cells = np.count_nonzero(StartField.data)/pow(grid_res/start_field_res, 2)
     print("Number of cells in deployment zone = %s" %np.count_nonzero(StartField.data))
 
@@ -237,7 +237,7 @@ if __name__ == "__main__":
                    help='Execution mode for performing RK4 computation')
     #p.add_argument('-f', '--files', default=['/short/e14/jsp561/OFAM/ocean_u_1993_01.TropPac.nc', '/short/e14/jsp561/OFAM/ocean_v_1993_01.TropPac.nc', '/short/e14/jsp561/OFAM/ocean_phy_1993_01.nc'],
      #              help='List of NetCDF files to load')
-    p.add_argument('-f', '--files', default=['/Volumes/4TB SAMSUNG/Ocean_Model_Data/OFAM_month1/ocean_u_1993_01.TropPac.nc', '/Volumes/4TB SAMSUNG/Ocean_Model_Data/OFAM_month1/ocean_v_1993_01.TropPac.nc'],
+    p.add_argument('-f', '--files', default=['/Volumes/SAMSUNG_4TB/Ocean_Model_Data/OFAM_month1/ocean_u_1993_01.TropPac.nc', '/Volumes/SAMSUNG_4TB/Ocean_Model_Data/OFAM_month1/ocean_v_1993_01.TropPac.nc'],
                    help='List of NetCDF files to load')
     p.add_argument('-t', '--time', type=int, default=3,
                    help='The total time of the simulation, expressed as number of seeding timesteps')
