@@ -12,18 +12,38 @@ from glob import glob
 from xml.dom import minidom
 
 
-def getGradient(field, landmask=None, shallow_sea_zero=True):
+def getGradient(field, landmask=None, shallow_sea_zero=True, time_period=None):
     dx, dy = field.cell_distances()
-    data = field.data
+    if time_period is not None:
+        print(datetime.fromtimestamp(field.time[0]))
+        print(datetime.fromtimestamp(field.time[-1]))
+        print(np.where(field.time > time_period[1]))
+
+        if field.time[0] <= time_period[0]:
+            start = np.where(field.time <= time_period[0])[0][-1]
+        else:
+            start = 0
+        if field.time[-1] >= time_period[1]:
+            end = np.where(field.time >= time_period[1])[0][0]
+        else:
+            end = len(field.time)
+    else:
+        start = 0
+        end = len(field.time)
+    tsteps = range(start, end)
+    print("Gradient for %s steps" % len(tsteps))
+    data = field.data[range(start,end),:,:]
     dVdx = np.zeros(data.shape, dtype=np.float32)
     dVdy = np.zeros(data.shape, dtype=np.float32)
     if landmask is not None:
         landmask = np.transpose(landmask.data[0,:,:])
         if shallow_sea_zero is False:
             landmask[np.where(landmask == 2)] = 0
-        for t in range(len(field.time)):
-            for x in range(1, len(field.lon)-1):
-                for y in range(1, len(field.lat)-1):
+        X = len(field.lon) if len(field.lon) <= landmask.shape[0] else landmask.shape[0]
+        Y = len(field.lat) if len(field.lat) <= landmask.shape[1] else landmask.shape[1]
+        for t in range(len(tsteps)):
+            for x in range(1, X-1):
+                for y in range(1, Y-1):
                     if landmask[x, y] < 1:
                         if landmask[x+1, y] == 1:
                             dVdx[t,y,x] = (data[t,y,x] - data[t,y,x-1])/dx[y, x]
@@ -45,14 +65,13 @@ def getGradient(field, landmask=None, shallow_sea_zero=True):
                 dVdx[t, y, 0] = (data[t, y, 1] - data[t, y, 0]) / dx[y, x]
                 dVdx[t, y, len(field.lon)-1] = (data[t, y, len(field.lon)-1] - data[t, y, len(field.lon)-2]) / dx[y, x]
 
-    return Field('d' + field.name + '_dx', dVdx, field.lon, field.lat, field.depth, field.time, \
+    return Field('d' + field.name + '_dx', dVdx, field.lon, field.lat, field.depth, field.time[range(start,end)], \
                  interp_method=field.interp_method, allow_time_extrapolation=field.allow_time_extrapolation),\
-           Field('d' + field.name + '_dy', dVdy, field.lon, field.lat, field.depth, field.time, \
+           Field('d' + field.name + '_dy', dVdy, field.lon, field.lat, field.depth, field.time[range(start,end)], \
                  interp_method=field.interp_method, allow_time_extrapolation=field.allow_time_extrapolation)
 
 
-def V_max(monthly_age, a=2.225841100458143, b=0.8348850216641774):
-    L = GetLengthFromAge(monthly_age)
+def V_max(L, a=2.225841100458143, b=0.8348850216641774):
     V = a * np.power(L, b)
     return V
 
@@ -65,18 +84,16 @@ def V_max_C(monthly_age):
     return V
 
 
-def GetLengthFromAge(monthly_age):
-    # Linf = 88.317
-    # K = 0.1965
-    # return Linf * (1 - np.exp(-K * age))
-    # Hard code discrete age-lengths for now
-    lengths = [3.00, 4.51, 6.02, 11.65, 16.91, 21.83, 26.43, 30.72, 34.73, 38.49, 41.99, 45.27,
-               48.33, 51.19, 53.86, 56.36, 58.70, 60.88, 62.92, 64.83, 66.61, 68.27, 69.83, 71.28,
-               72.64, 73.91, 75.10, 76.21, 77.25, 78.22, 79.12, 79.97, 80.76, 81.50, 82.19, 82.83,
-               83.44, 84.00, 84.53, 85.02, 85.48, 85.91, 86.31, 86.69, 87.04, 87.37, 87.68, 87.96,
-               88.23, 88.48, 88.71, 88.93, 89.14, 89.33, 89.51, 89.67, 89.83, 89.97, 90.11, 90.24,
-               90.36, 90.47, 90.57, 90.67, 91.16]
-    return lengths[monthly_age-1]/100 # Convert to meters
+def GetLengthFromAge(age, lengths=[3.00, 4.51, 6.02, 11.65, 16.91, 21.83, 26.43, 30.72, 34.73, 38.49, 41.99, 45.27,
+                                  48.33, 51.19, 53.86, 56.36, 58.70, 60.88, 62.92, 64.83, 66.61, 68.27, 69.83, 71.28,
+                                  72.64, 73.91, 75.10, 76.21, 77.25, 78.22, 79.12, 79.97, 80.76, 81.50, 82.19, 82.83,
+                                  83.44, 84.00, 84.53, 85.02, 85.48, 85.91, 86.31, 86.69, 87.04, 87.37, 87.68, 87.96,
+                                  88.23, 88.48, 88.71, 88.93, 89.14, 89.33, 89.51, 89.67, 89.83, 89.97, 90.11, 90.24,
+                                  90.36, 90.47, 90.57, 90.67, 91.16]):
+    age -= 1
+    if age >= len(lengths):
+        age = len(lengths)-1
+    return lengths[age]/100 # Convert to meters
 
 
 def Mortality(age, MPmax=0.3, MPexp=0.1008314958945224, MSmax=0.006109001382111822, MSslope=0.8158285706493162,
@@ -133,78 +150,147 @@ def Create_Landmask(grid, lim=1e-45):
     Mask.interp_method = 'nearest'
     return Mask#ClosestLon, ClosestLat
 
-
-def Create_SEAPODYM_F_Field(E, name='F', start_age=4, q=0.001032652877899101, selectivity_func=3, mu= 52.56103941719986, sigma=8.614813906820441, r_asymp=0.2456242856428466):
-    F_Data = np.zeros(np.shape(E.data), dtype=np.float32)
-    age = start_age
-    for t in range(E.time.size):
-        if E.time[t] - E.time[0] > (age-start_age+1)*28*24*60*60:
-            age += 1
-        l = GetLengthFromAge(age)*100
-        if l > mu:
-            Selectivity = r_asymp+(1-r_asymp)*np.exp(-(pow(l-mu,2)/(sigma)))
+# def Create_SEAPODYM_F_Field(grid, fishery_parameters, start_age=4, time_period=None):
+def Create_SEAPODYM_F_Field(Effort, length_classes, name='F', start_age=4, verbose=False,
+                            q=0.001032652877899101, selectivity_func=3, mu= 52.56103941719986, sigma=8.614813906820441,
+                            r_asymp=0.2456242856428466, time_period=None, timestep=30*24*7*7):
+    #fisheries = fishery_parameters['Fisheries']
+    if time_period is not None:
+        print(Effort.time)
+        print(time_period[0])
+        before = np.where(Effort.time < time_period[0])[0]
+        if len(before) > 0:
+            start = before[-1]
         else:
-            Selectivity = np.exp(-(pow(l-mu,2)/(sigma)))
+            print("Effort data does not exist for start time of %s! Using earliest timestamp %s" %
+                  (datetime.fromtimestamp(time_period[0]), datetime.fromtimestamp(Effort.time[0])))
+            start = 0
+        if Effort.time[-1] > time_period[1]:
+            end = np.where(Effort.time > time_period[1])[0][0]
+        else:
+            end = len(Effort.time) + 1
+    else:
+        start = 0
+        end = len(Effort.time)
+    Esteps = range(start,end)
+    tsteps = np.arange(time_period[0], time_period[1], timestep)
 
-        print("Age = %s months, Length = %scm, Selectivity = %s" % (age, l, Selectivity))
-        F_Data[t,:,:] = E.data[t,:,:] * q * Selectivity
-    return(Field(name, F_Data, E.lon, E.lat, time=E.time, interp_method='nearest'))
+    E_scaler = (1.0/30.0)*7.0
+    F_scaler = 30.0 / 7.0 / 7.0
+
+    F_Data = np.zeros([len(tsteps),len(Effort.lat), len(Effort.lon)], dtype=np.float32)
+    sigma_sq = pow(sigma, 2)
+    for t in range(len(tsteps)):
+        age = int(start_age + t)
+        l = GetLengthFromAge(age, length_classes)*100 #back to cm for selectivity
+        if selectivity_func == 3.0:
+            if l > mu:
+                Selectivity = (1-r_asymp)*np.exp(-(pow(l-mu,2)/(sigma_sq)))+r_asymp
+            else:
+                Selectivity = np.exp(-(pow(l-mu,2)/(sigma_sq)))
+        elif selectivity_func == 2.0:
+            Selectivity = pow(1 + np.exp(-sigma*(l-mu)),-1)
+        else:
+            print("Selectivity Function not supported! q set to 0")
+            Selectivity = 0
+
+        idx = np.argmin(abs((Effort.time[Esteps] - time_period[0]) - (t*timestep)))
+        F_Data[t,:,:] += F_scaler*E_scaler*Effort.data[idx,:,:] * q * Selectivity
+        if verbose:
+            date = datetime.fromtimestamp(time_period[0] + t*timestep).strftime('%Y-%m-%d %H:%M:%S')
+            print("Date = %s, Age = %s, Length = %scm, Selectivity = %s" % (date, age, l, Selectivity))
+            print("max F %s" % np.max(F_Data[t,:,:]))
+            print("Effort time index is %s" % idx)
+            print(Effort.time[idx])
+            print(datetime.fromtimestamp(Effort.time[idx]).strftime('%Y-%m-%d %H:%M:%S'))
+    time = np.arange(time_period[0], time_period[1], timestep)
+    return(Field(name, F_Data, Effort.lon, Effort.lat, time=time, interp_method='nearest'))
 
 
-def Create_SEAPODYM_Taxis_Fields(dHdx, dHdy, start_age=4, taxis_scale=1, units='m_per_s',
-                                 vmax_a=2.225841100458143, vmax_b=0.8348850216641774):
-    Tx = np.zeros(np.shape(dHdx.data), dtype=np.float32)
-    Ty = np.zeros(np.shape(dHdx.data), dtype=np.float32)
-    months = start_age
-    age = months*30*24*60*60
-    for t in range(dHdx.time.size):
-        age = (start_age+t)*30*24*60*60
-        if age - (months*30*24*60*60) >= (30*24*60*60):
-            months += 1
-        if units is 'nm_per_mon':
+def Create_SEAPODYM_Taxis_Fields(dHdx, dHdy, length_classes, start_age=4, taxis_scale=1, units='m_per_s',
+                                 vmax_a=2.225841100458143, vmax_b=0.8348850216641774, time_period=None, timestep=30*24*60*60):
+    if time_period is not None:
+        start = np.where(dHdx.time <= time_period[0])[0][-1]
+        if dHdx.time[-1] >= time_period[1]:
+            end = np.where(dHdx.time > time_period[1])[0][0]
+        else:
+            end = len(dHdx.time)
+    else:
+        start = 0
+        end = len(dHdx.time)
+    tsteps = range(start,end)
+    xData = dHdx.data[tsteps, :, :]
+    yData = dHdy.data[tsteps, :, :]
+    Tx = np.zeros(xData.shape, dtype=np.float32)
+    Ty = np.zeros(yData.shape, dtype=np.float32)
+    age_class = start_age
+    print("Taxis for %s steps" % len(tsteps))
+    for t in range(len(tsteps)):
+        age = (start_age+t)*timestep
+        if age - (age_class*timestep) >= (timestep):
+            age_class += 1
+        l = GetLengthFromAge(age_class, length_classes)
+        if units is 'nm_per_timestep':
             for x in range(dHdx.lon.size):
                 for y in range(dHdx.lat.size):
-                    Tx[t, y, x] = V_max(months, vmax_a, vmax_b)*((30*24*60*60)/1852) * dHdx.data[t, y, x] * taxis_scale * (1000*1.852*60 * math.cos(dHdx.lat[y]*math.pi/180)) * 1/(60*60*24*30)
-                    Ty[t, y, x] = V_max(months, vmax_a, vmax_b)*((30*24*60*60)/1852) * dHdy.data[t, y, x] * taxis_scale * (1000*1.852*60) * 1/(60*60*24*30)
+                    Tx[t, y, x] = V_max(l, vmax_a, vmax_b)*((timestep)/1852) * xData[t, y, x] * taxis_scale * (1000*1.852*60 * math.cos(dHdx.lat[y]*math.pi/180)) * 1/timestep
+                    Ty[t, y, x] = V_max(l, vmax_a, vmax_b)*((timestep)/1852) * yData[t, y, x] * taxis_scale * (1000*1.852*60) * 1/timestep
         else:
             for x in range(dHdx.lon.size):
                 for y in range(dHdx.lat.size):
-                    Tx[t, y, x] = V_max(months, vmax_a, vmax_b) * dHdx.data[t, y, x] * taxis_scale * (1000*1.852*60 * math.cos(dHdx.lat[y]*math.pi/180))# / ((1 / 1000. / 1.852 / 60.) / math.cos(dHdx.lat[y]*math.pi/180))
-                    Ty[t, y, x] = V_max(months, vmax_a, vmax_b) * dHdy.data[t, y, x] * taxis_scale * (1000*1.852*60)#/ (1 / 1000. / 1.852 / 60.)
+                    Tx[t, y, x] = V_max(l, vmax_a, vmax_b) * xData[t, y, x] * taxis_scale * (250*1.852*15 * math.cos(dHdx.lat[y]*math.pi/180))# / ((1 / 1000. / 1.852 / 60.) / math.cos(dHdx.lat[y]*math.pi/180))
+                    Ty[t, y, x] = V_max(l, vmax_a, vmax_b) * yData[t, y, x] * taxis_scale * (250*1.852*15)#/ (1 / 1000. / 1.852 / 60.)
 
-    return [Field('Tx', Tx, dHdx.lon, dHdx.lat, time=dHdx.time, interp_method='nearest', allow_time_extrapolation=True),
-            Field('Ty', Ty, dHdx.lon, dHdx.lat, time=dHdx.time, interp_method='nearest', allow_time_extrapolation=True)]
+    return [Field('Tx', Tx, dHdx.lon, dHdx.lat, time=dHdx.time[tsteps], interp_method='nearest', allow_time_extrapolation=True),
+            Field('Ty', Ty, dHdx.lon, dHdx.lat, time=dHdx.time[tsteps], interp_method='nearest', allow_time_extrapolation=True)]
 
 
-def Create_SEAPODYM_Diffusion_Field(H, timestep=30*24*60*60, sigma=0.1769952864978924, c=0.662573993401526, P=3,
+def Create_SEAPODYM_Diffusion_Field(H, length_classes, timestep=30*24*60*60, sigma=0.1769952864978924, c=0.662573993401526, P=3,
                                     start_age=4, Vmax_slope=1, units='m_per_s',
                                     diffusion_boost=0, diffusion_scale=1, sig_scale=1, c_scale=1,
-                                    verbose=True):
-    # Old parameters sigma=0.1999858740340303, c=0.9817751085550976,
-    K = np.zeros(np.shape(H.data), dtype=np.float32)
-    months = start_age
-    age = months*30*24*60*60
-    for t in range(H.time.size):
-        # Increase age in months if required, to incorporate appropriate Vmax
+                                    verbose=True, time_period=None):
+    if time_period is not None:
+        print(H.time[0])
+        print(H.time[-1])
+        print(np.where(H.time > time_period[1]))
+        start = np.where(H.time < time_period[0])[0][-1]
+        if H.time[-1] > time_period[1]:
+            end = np.where(H.time > time_period[1])[0][0]
+        else:
+            end = len(H.time)
+    else:
+        start = 0
+        end = len(H.time)
+    print("dt = %s" % timestep)
+    tsteps = range(start,end)
+    print("Diffusion for %s steps" % len(tsteps))
+    Hdata = H.data[tsteps, :, :]
+    K = np.zeros(np.shape(Hdata), dtype=np.float32)
+    age_class = start_age
+    for t in range(len(tsteps)):
+        # Increase age in age_classes if required, to incorporate appropriate Vmax
         # months in SEAPODYM are all assumed to be 30 days long
         #age = H.time[t] - H.time[0] + start_age*30*24*60*60 # this is for 'true' ageing
-        age = (start_age*30*24*60*60) + H.time[t] - H.time[0] #(start_age+t)*30*24*60*60
-        if age - (months*30*24*60*60) >= (30*24*60*60):
-            months += 1
+        age = (start_age*timestep) + H.time[tsteps[t]] - H.time[0] #(start_age+t)*30*24*60*60
+        if age - (age_class*timestep) >= (timestep):
+            age_class += 1
         if verbose:
             print('age in days = %s' % (age/(24*60*60)))
-            print("Calculating diffusivity for fish aged %s months" % months)
-        if units == 'nm_per_mon':
-            Dmax = (np.power(GetLengthFromAge(months)*((30*24*60*60)/1852), 2) / 4 ) * timestep/(60*60*24*30) #vmax = L for diffusion
+            print("Calculating diffusivity for fish aged %s age_classes" % age_class)
+        if units == 'nm_per_timestep':
+            Dmax = (np.power(GetLengthFromAge(age_class, length_classes)*((timestep)/1852), 2) / 4 ) * timestep/(timestep) #vmax = L for diffusion
         else:
-            Dmax = (np.power(GetLengthFromAge(months), 2) / 4) * timestep  #fixed b parameter for diffusion
+            Dmax = (np.power(GetLengthFromAge(age_class, length_classes), 2) / 4) * timestep
         print("Sigma = %s, Dmax = %s" % (sigma, Dmax))
         sig_D = sigma * Dmax
         for x in range(H.lon.size):
             for y in range(H.lat.size):
-                K[t, y, x] = sig_scale * sig_D * (1 - c_scale * c * np.power(H.data[t, y, x], P)) * diffusion_scale + diffusion_boost
+                K[t, y, x] = sig_scale * sig_D * (1 - c_scale * c * np.power(Hdata[t, y, x], P)) * diffusion_scale + diffusion_boost
+        if verbose:
+            print("")
+            print("K range is %s to %s" % (np.min(K[t,:,:]), np.max(K[t,:,:])))
 
-    return Field('K', K, H.lon, H.lat, time=H.time, interp_method='nearest', allow_time_extrapolation=True)
+    return Field('K', K, H.lon, H.lat, time=H.time[tsteps], interp_method='nearest', allow_time_extrapolation=True)
 
 
 def readSEAPODYM_parfile(file):
@@ -226,13 +312,16 @@ def readSEAPODYM_parfile(file):
             SEAPODYM_Params[f]['q'] = float(Q[0].getElementsByTagName(f)[0].attributes['skj'].value)
         S = parfile.getElementsByTagName('s_sp_fishery')
         for f in SEAPODYM_Params['Fisheries']:
-            SEAPODYM_Params[f].update({'mu': float(S[0].getElementsByTagName(f)[0].attributes['skj'].value)})
+            SEAPODYM_Params[f].update({'sigma': float(S[0].getElementsByTagName(f)[0].attributes['skj'].value)})
             SEAPODYM_Params[f]['function_type'] = float(S[0].getElementsByTagName(f)[0].getElementsByTagName('function_type')[0].attributes['value'].value)
-            SEAPODYM_Params[f]['length_threshold'] = float(S[0].getElementsByTagName(f)[0].getElementsByTagName('length_threshold')[0].attributes['skj'].value)
-            SEAPODYM_Params[f]['right_asymptote'] = float(S[0].getElementsByTagName(f)[0].getElementsByTagName('length_threshold')[0].attributes['skj'].value)
+            SEAPODYM_Params[f]['mu'] = float(S[0].getElementsByTagName(f)[0].getElementsByTagName('length_threshold')[0].attributes['skj'].value)
+            SEAPODYM_Params[f]['right_asymptote'] = float(S[0].getElementsByTagName(f)[0].getElementsByTagName('right_asymptote')[0].attributes['skj'].value)
+        SEAPODYM_Params['Length_Classes'] = [float(l) for l in parfile.getElementsByTagName('length')[0].getElementsByTagName('skj')[0].childNodes[0].data.split()]
+        SEAPODYM_Params['SEAPODYM_dt'] = int(parfile.getElementsByTagName('deltaT')[0].attributes['value'].value) *24*60*60
     else:  # Some defaults
         SEAPODYM_Params = {'sigma_species': 0.1769952864978924, 'c_diff_fish': 0.662573993401526,
                            'MSS_species': 2.225841100458143, 'MSS_size_slope': 0.8348850216641774}
+    print(SEAPODYM_Params)
     return SEAPODYM_Params
 
 

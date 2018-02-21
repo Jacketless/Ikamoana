@@ -14,7 +14,8 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
              Landmask_File=None, SEAPODYM_parfile=None,
              BehaviourMode='SEAPODYM', mode='jit',
              start_age=4, starttime=1042588800, output_density=False, output_grid=False, output_trajectory=True, random_seed=None,
-             output_filestem='IKAMOANA'
+             diffusion_scaler=1, taxis_scaler=1, currents_scaler=1,
+             output_filestem='IKAMOANA', forcing_dir='', fishing_dir=''
              ):
     if random_seed is None:
         np.random.RandomState()
@@ -27,69 +28,169 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
     if SEAPODYM_parfile is not None:
         SEAPODYM_Params = readSEAPODYM_parfile(SEAPODYM_parfile)
 
-    Behaviours = {'SEAPODYM': ['Advection_C', 'TaxisRK4', 'LagrangianDiffusion', 'MoveWithLandCheck', 'AgeAnimal'],
-                  'Drifter': ['Advection_C', 'Move']}
+    Behaviours = {'SEAPODYM': ['Advection_C', 'TaxisRK4', 'LagrangianDiffusion', 'MoveWithLandCheck', 'AgeAnimal', 'FishingMortality', 'NaturalMortality', 'DepleteSchool'],
+                  'SEAPODYM_F0': ['Advection_C', 'TaxisRK4', 'LagrangianDiffusion', 'MoveWithLandCheck', 'AgeAnimal'],
+                  'FAD': ['Advection_C', 'TaxisRK4', 'LagrangianDiffusion', 'FAD_Behaviour', 'MoveWithLandCheck', 'AgeAnimal'],
+                  'Drifter': ['AdvectionRK4']}
     Kernels = Behaviours[BehaviourMode]
+
+    if 'FishingMortality' in Kernels:
+        for f in SEAPODYM_Params['Fisheries']:
+            Forcing_Files.update({f: fishing_dir + f + '_E_Data.nc'})
+            Forcing_Variables.update({f: f})
 
     Animal = define_Animal_Class(ParticleClass)
 
+    start_time = (starttime-datetime.datetime(1970,1,1)).total_seconds()
+    sim_time = timestep*T
+    end_time = start_time + sim_time
+    print("Ikamoana simulation running from from %s to %s" % (datetime.datetime.fromtimestamp(start_time),
+                                                              datetime.datetime.fromtimestamp(end_time)))
 
     # Create the forcing fieldset grid for the simulation
-    ocean = FieldSet.from_netcdf(filenames=Forcing_Files, variables=Forcing_Variables, dimensions=Forcing_Dimensions,
-                             vmin=-200, vmax=1e5, allow_time_extrapolation=True)
-    print(Forcing_Files['U'])
-    Depthdata = Field.from_netcdf('u_bathy', dimensions={'lon': 'longitude', 'lat': 'latitude', 'time': 'time'},
+    Dims = {}
+    # Fields typically written by parcels, therefor having 'nav_lon' type dimensions
+    nav_dims = ['K', 'dK_dx', 'dK_dy', 'dH_dx', 'dH_dy', 'Tx', 'Ty', 'F']
+    for f in Forcing_Files.keys():
+        if f in nav_dims:
+            Dims.update({f: {'lon':'nav_lon', 'lat':'nav_lat', 'time':'time_counter'}})
+        else:
+            Dims.update({f: Forcing_Dimensions})
+
+    #print(Forcing_Files)
+    ocean = FieldSet.from_netcdf(filenames=Forcing_Files, variables=Forcing_Variables, dimensions=Dims,
+                             vmin=-1e10, vmax=1e10, allow_time_extrapolation=True)
+
+    ocean.U.data *= currents_scaler
+    ocean.V.data *= currents_scaler
+
+    print(Landmask_File)
+    if Landmask_File is not None:
+        Depthdata = Field.from_netcdf('u_bathy', dimensions={'lon': 'longitude', 'lat': 'latitude', 'time': 'time'},
                                      filenames=Landmask_File, allow_time_extrapolation=True)
-    Depthdata.name = 'bathy'
-    ocean.add_field(Depthdata)
-    ocean.add_field(Create_Landmask(ocean))
+        Depthdata.name = 'bathy'
+        ocean.add_field(Depthdata)
+        ocean.add_field(Create_Landmask(ocean))
 
     if 'TaxisRK4' in Kernels:
-        dHdx, dHdy = getGradient(ocean.H, ocean.LandMask) #ocean.H.gradient()
-        ocean.add_field(dHdx)
-        ocean.add_field(dHdy)
-        t_fields = Create_SEAPODYM_Taxis_Fields(ocean.dH_dx, ocean.dH_dy, start_age=int(start_age),
-                                                vmax_a=SEAPODYM_Params['MSS_species'], vmax_b=SEAPODYM_Params['MSS_size_slope'])
-        ocean.add_field(t_fields[0])
-        ocean.add_field(t_fields[1])
-    if 'LagrangianDiffusion' in Kernels:
+        print("Creating taxis fields")
         if not hasattr(ocean, 'dH_dx'):
-            dHdx, dHdy = getGradient(ocean.H, ocean.LandMask)
+            dHdx, dHdy = getGradient(ocean.H, ocean.LandMask, time_period=[start_time, end_time]) #ocean.H.gradient()
             ocean.add_field(dHdx)
             ocean.add_field(dHdy)
-        ocean.add_field(Create_SEAPODYM_Diffusion_Field(ocean.H, timestep=30*24*60*60, start_age=int(start_age),
-                                                        sigma=SEAPODYM_Params['sigma_species'],
-                                                        c=SEAPODYM_Params['c_diff_fish']))
-        dKdx, dKdy = getGradient(ocean.K, ocean.LandMask, False)
-        ocean.add_field(dKdx)
-        ocean.add_field(dKdy)
+        if not hasattr(ocean, 'Tx'):
+            t_fields = Create_SEAPODYM_Taxis_Fields(ocean.dH_dx, ocean.dH_dy, SEAPODYM_Params['Length_Classes'], start_age=int(start_age),
+                                                    vmax_a=SEAPODYM_Params['MSS_species'],
+                                                    vmax_b=SEAPODYM_Params['MSS_size_slope'], taxis_scale=taxis_scaler,
+                                                    time_period=[start_time, end_time], timestep=SEAPODYM_Params['SEAPODYM_dt'])
+            ocean.add_field(t_fields[0])
+            ocean.add_field(t_fields[1])
+        # Combine Taxis and Current fields
+        time_period = [start_time, end_time]
+        start = np.where(ocean.U.time < time_period[0])[0][-1]
+        if ocean.U.time[-1] > time_period[1]:
+            end = np.where(ocean.U.time > time_period[1])[0][0]
+        else:
+            end = len(ocean.U.time)
+        #ocean.add_field(Field('UTx', ocean.Tx.data[start:end,:,:]+ocean.U.data[start:end,:,:], ocean.U.lon, ocean.U.lat, ocean.U.time[start:end]))
+        #ocean.add_field(Field('VTy', ocean.Ty.data[start:end,:,:]+ocean.V.data[start:end,:,:], ocean.V.lon, ocean.V.lat, ocean.V.time[start:end]))
+    if 'FAD_Behaviour' in Kernels:
+        print("Creating FAD fields")
+        # HACK! shift times back 6 years ;)
+        #ocean.FAD.time -= 189216000
+        dFADdx, dFADdy = getGradient(ocean.FAD, ocean.LandMask, shallow_sea_zero=False, time_period=[start_time, end_time])
+        ocean.add_field(dFADdx)
+        ocean.add_field(dFADdy)
+    if 'LagrangianDiffusion' in Kernels:
+        print("Creating K fields")
+        if not hasattr(ocean, 'dH_dx'):
+            dHdx, dHdy = getGradient(ocean.H, ocean.LandMask, time_period=[start_time, end_time])
+            ocean.add_field(dHdx)
+            ocean.add_field(dHdy)
+        if not hasattr(ocean, 'K'):
+            ocean.add_field(Create_SEAPODYM_Diffusion_Field(ocean.H, SEAPODYM_Params['Length_Classes'], timestep=SEAPODYM_Params['SEAPODYM_dt'], start_age=int(start_age),
+                                                            sigma=SEAPODYM_Params['sigma_species'], diffusion_scale=diffusion_scaler,
+                                                            c=SEAPODYM_Params['c_diff_fish'], time_period=[start_time, end_time]))
+        if not hasattr(ocean, 'dK_dx'):
+            dKdx, dKdy = getGradient(ocean.K, ocean.LandMask, shallow_sea_zero=False, time_period=[start_time, end_time])
+            print(dKdy.data.shape)
+            ocean.add_field(dKdx)
+            ocean.add_field(dKdy)
     if 'FishingMortality' in Kernels:
-        ocean.add_field(Create_SEAPODYM_F_Field(ocean.E))
+        if not hasattr(ocean, 'F'):
+            print("Creating Fishing Mortality Fields")
+            for f in SEAPODYM_Params['Fisheries']:
+                ocean.add_field(Create_SEAPODYM_F_Field(getattr(ocean, f), SEAPODYM_Params['Length_Classes'], name=f, start_age=start_age,
+                                                        q=SEAPODYM_Params[f]['q'], verbose=True,
+                                                        selectivity_func=SEAPODYM_Params[f]['function_type'],
+                                                        mu=SEAPODYM_Params[f]['mu'], sigma=SEAPODYM_Params[f]['sigma'],
+                                                        r_asymp=SEAPODYM_Params[f]['right_asymptote'],
+                                                        time_period=[start_time, end_time],
+                                                        timestep=SEAPODYM_Params['SEAPODYM_dt']))
+            # Combine into one F field
+            #F_Data = np.zeros(np.shape(getattr(ocean,SEAPODYM_Params['Fisheries'][0]).data), dtype=np.float32)
+            #for f in SEAPODYM_Params['Fisheries']:
+            #    F_Data += getattr(ocean, f).data
+            ocean.add_constant('EFFORT_TIMESTEP', 7*24*60*60)
+            #F_Data = [(1-Ffield.data*(timestep/(ocean.EFFORT_TIMESTEP))) for Ffield in [getattr(ocean,f) for f in SEAPODYM_Params['Fisheries']]]
+            #F_Data = np.prod(F_Data, axis=0, dtype=np.float32)
+            for f in SEAPODYM_Params['Fisheries']:
+                print(np.max(getattr(ocean,f).data))
+            F_Data = [Ffield.data for Ffield in [getattr(ocean,f) for f in SEAPODYM_Params['Fisheries']]]
+            print(np.shape(F_Data))
+            print(np.min(F_Data))
+            print(np.max(F_Data))
+            F_Data = np.sum(F_Data, axis=0)
+            #test against small value interpolation problems
+            ocean.add_field(Field('F', F_Data, getattr(ocean,SEAPODYM_Params['Fisheries'][0]).lon,
+                                  getattr(ocean,SEAPODYM_Params['Fisheries'][0]).lat,
+                                  time=getattr(ocean,SEAPODYM_Params['Fisheries'][0]).time, interp_method='nearest',
+                                  allow_time_extrapolation=True))
+    if 'NaturalMortality' in Kernels:
+        ocean.add_constant('MPmax', SEAPODYM_Params['Mp_mean_max'])
+        ocean.add_constant('MPexp', SEAPODYM_Params['Mp_mean_exp'])
+        ocean.add_constant('MSmax', SEAPODYM_Params['Ms_mean_max'])
+        ocean.add_constant('MSslope', SEAPODYM_Params['Ms_mean_slope'])
+        ocean.add_constant('Mrange', SEAPODYM_Params['M_mean_range'])
+
+    for f in ocean.fields:
+        print(f.name)
+        print(f.data.shape)
 
     if output_grid:
         ocean.write(output_filestem)
+
+    # Add constants to the fieldset
+    ocean.add_constant('AGE_CLASS', SEAPODYM_Params['SEAPODYM_dt'])
 
     # Create the particle set for our simulated animals
     if Init_Positions is not None:
         animalset = ParticleSet.from_list(fieldset=ocean, lon=Init_Positions[0], lat=Init_Positions[1], pclass=Animal)
     else:
+        # Find the closest startfield timestamp to the simulation start time
+        idx = np.argmin(abs(ocean.start.time - start_time))
+        ocean.start.data = ocean.start.data[idx,:,:]
+        ocean.start.time = ocean.start.time[idx]
         animalset = ParticleSet.from_field(fieldset=ocean, start_field=ocean.start, size=individuals, pclass=Animal)
     for a in animalset.particles:
-        a.age = start_age*30*24*60*60
-        a.monthly_age = start_age
+        a.age_class = start_age
+        a.age = start_age*ocean.AGE_CLASS
 
     trajectory_file = ParticleFile(output_filestem + '_trajectories', animalset) if output_trajectory is True else None
 
     # Build kernels
     AllKernels = {'Advection_C':Advection_C,
+                  'AdvectionRK4':AdvectionRK4,
                   'LagrangianDiffusion':LagrangianDiffusion,
                   'TaxisRK4':TaxisRK4,
+                  'FAD_Behaviour':FAD_Behaviour,
                   'FishingMortality':FishingMortality,
                   'NaturalMortality':NaturalMortality,
                   'Move': Move,
                   'MoveOffLand': MoveOffLand,
                   'MoveWithLandCheck': MoveWithLandCheck,
-                  'AgeAnimal':AgeAnimal}
+                  'AgeAnimal':AgeAnimal,
+                  'DepleteSchool':DepleteSchool}
     KernelList = []
     KernelString = []
     for k in Kernels:
@@ -101,10 +202,6 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
     KernelString = ''.join(KernelString)
     behaviours = eval(KernelString)
 
-    # Calculate an outer execution loop for particle density calculations
-    start_time = (starttime-datetime.datetime(1970,1,1)).total_seconds()
-    #start_time = starttime #getattr(ocean, Forcing_Variables.keys()[0]).time[0]
-    sim_time = timestep*T
     if density_timestep > 0:
         outer_timestep = (density_timestep*timestep) % sim_time
         sim_steps = np.arange(start_time, start_time+sim_time+1, outer_timestep)
@@ -134,22 +231,25 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
 def define_Animal_Class(type=JITParticle):
     class IKAMOANA_Animal(type):
         active = Variable("active", to_write=True)
-        age = Variable('age',dtype=np.float32)
-        monthly_age = Variable('monthly_age',dtype=np.float32)
-        Dx = Variable('Dx', to_write=True, dtype=np.float32)
-        Dy = Variable('Dy', to_write=True, dtype=np.float32)
-        Cx = Variable('Cx', to_write=True, dtype=np.float32)
-        Cy = Variable('Cy', to_write=True, dtype=np.float32)
-        Vx = Variable('Vx', to_write=True, dtype=np.float32)
-        Vy = Variable('Vy', to_write=True, dtype=np.float32)
-        Ax = Variable('Ax', to_write=True, dtype=np.float32)
-        Ay = Variable('Ay', to_write=True, dtype=np.float32)
+        age = Variable('age',dtype=np.float32, to_write=False)
+        age_class = Variable('age_class',dtype=np.float32)
+        Dx = Variable('Dx', to_write=False, dtype=np.float32)
+        Dy = Variable('Dy', to_write=False, dtype=np.float32)
+        Cx = Variable('Cx', to_write=False, dtype=np.float32)
+        Cy = Variable('Cy', to_write=False, dtype=np.float32)
+        Vx = Variable('Vx', to_write=False, dtype=np.float32)
+        Vy = Variable('Vy', to_write=False, dtype=np.float32)
+        Ax = Variable('Ax', to_write=False, dtype=np.float32)
+        Ay = Variable('Ay', to_write=False, dtype=np.float32)
         prev_lon = Variable('prev_lon', to_write=False)
         prev_lat = Variable('prev_lat', to_write=False)
         school = Variable('school', to_write=True, dtype=np.float32)
         depletionF = Variable('depletionF', to_write=True, dtype=np.float32)
         depletionN = Variable('depletionN', to_write=True, dtype=np.float32)
-        In_Loop = Variable('In_Loop', to_write=True, dtype=np.float32)
+        Fmor = Variable('Fmor', to_write=True, dtype=np.float32)
+        Nmor = Variable('Nmor', to_write=False, dtype=np.float32)
+
+        In_Loop = Variable('In_Loop', to_write=False, dtype=np.float32)
         #land_trigger = Variable('land_trigger', to_write=True)
 
         def __init__(self, *args, **kwargs):
@@ -166,53 +266,55 @@ def readParameterFile(file):
     with open(file) as f:
         params = f.readlines()
     params = [p.strip() for p in params]
-    Params = dict([p.split(" ") for p in params])
+    Params = {}
+    for p in params:
+        line = p.split(" ")
+        if len(line) > 2:
+            Params.update({line[0]: line[1:]})
+        else:
+            Params.update({line[0]: line[1]})
+    #print(Params)
     conversion = dict({'none': None, 'None': None,
                        'true': True, 'True': True,
                        'false': False, 'False': False})
-    print(conversion.keys())
+    #print(conversion.keys())
     for p in Params.keys():
         if Params[p] in conversion.keys():
-            print(p)
+            #print(p)
             Params[p] = conversion[Params[p]]
-    numericals = ['individuals', 'time', 'timestep', 'density_timestep', 'start_age']
+    numericals = ['individuals', 'time', 'timestep', 'density_timestep', 'start_age', 'start_point',
+                  'K_scale', 'T_scale', 'A_scale']
     for p in numericals:
-        print(p)
-        Params[p] = float(Params[p])
+        if p in Params:
+            if type(Params[p]) is list:
+                Params[p] = [float(v) for v in Params[p]]
+            else:
+                Params[p] = float(Params[p])
     return Params
 
 
 def prepParameters(Params):
     all_file_links = {'U': 'ForcingU', 'V': 'ForcingV', 'H': 'ForcingH', 'Ubathy': 'ForcingUbathy','Vbathy': 'ForcingVbathy',
                       'start': 'StartDist', 'LandMask': 'LandMask_file', 'K': 'K_file', 'dK_dx': 'dKdx_file', 'dK_dy': 'dKdy_file',
-                      'Tx': 'Tx_file', 'Ty': 'Ty_file', 'dH_dx': 'dHdx_file', 'dH_dy': 'dHdy_file'}
-    for p in ['ForcingU', 'ForcingV', 'ForcingH', 'ForcingUbathy', 'ForcingVbathy',
-              'StartDist', 'SEAPODYM_parfile', 'LandMask',
-              'K_file', 'dKdx_file', 'dKdy_file',
-              'Tx_file', 'Ty_file', 'dHdx_file', 'dHdy_file']:
+                      'Tx': 'Tx_file', 'Ty': 'Ty_file', 'dH_dx': 'dHdx_file', 'dH_dy': 'dHdy_file', 'FAD': 'FAD_file', 'F': 'F_file'}
+    for p in all_file_links.values():
         if p in Params.keys():
             Params[p] = Params['ForcingDir'] + Params[p]
+    Params['SEAPODYM_parfile'] = Params['ForcingDir'] + Params['SEAPODYM_parfile']
 
     Params['ForcingFiles'] = {}
     for f in all_file_links.keys():
         if all_file_links[f] in Params.keys():
             Params['ForcingFiles'].update({f: Params[all_file_links[f]]})
 
-    # Params['ForcingFiles'].update({'U': Params['ForcingU'],
-    #                                'V': Params['ForcingV'],
-    #                                'H': Params['ForcingH'],
-    #                                'start': Params['StartDist'],
-    #                                'Ubathy': Params['ForcingUbathy'],
-    #                                'Vbathy': Params['ForcingVbathy']})
     Params['ForcingVariables'] = {}
+    for f in all_file_links.keys():
+        if all_file_links[f] in Params.keys():
+            Params['ForcingVariables'].update({f: Params[f]})
 
-    Params['ForcingVariables'].update({'U': Params['Uvar'],
-                                       'V': Params['Vvar'],
-                                       'H': Params['Hvar'],
-                                       'start': Params['Startvar'],
-                                       'Ubathy': Params['Ubathyvar'],
-                                       'Vbathy': Params['Vbathyvar']})
-    Params['start_time'] = datetime.datetime.strptime(Params['start_time'], '%Y-%M-%d')
+    Params['start_time'] = datetime.datetime.strptime(Params['start_time'], '%Y-%m-%d')
+
+    #print(Params)
     return Params
 
 
@@ -253,6 +355,8 @@ if __name__ == "__main__":
                    help='Name of the density variable in the startfield netcdf file')
     p.add_argument('-sp', '--start_point', nargs='+', type=float, default=None,
                    help='start location to release all particles (overides startfield argument)')
+    p.add_argument('-rn', '--random_seed', type=int, default=None,
+                   help='random seed, default is np.random.RandomState()')
     p.add_argument('-o', '--output', default='IKAMOANA',
                    help='Output filename stem')
     p.add_argument('-ts', '--timestep', type=int, default=172800,
@@ -277,7 +381,7 @@ if __name__ == "__main__":
     if args.paramfile is not None:
         IKAMOANA_Args = readParameterFile(args.paramfile)
         IKAMOANA_Args = prepParameters(IKAMOANA_Args)
-        print(IKAMOANA_Args)
+        #print(IKAMOANA_Args)
     else:
         IKAMOANA_Args = {}
         IKAMOANA_Args['write_particles'] = False if args.write_particles == 'False' else True
@@ -303,19 +407,26 @@ if __name__ == "__main__":
                 IKAMOANA_Args[arg] = temp_args[arg]
             #print(IKAMOANA_Args)
 
-        if args.start_point is not None:
-            IKAMOANA_Args['startpoint'] = [[],[]]
-            points = len(args.start_point)/2
-            for p in range(0,points*2, 2):
-                IKAMOANA_Args['startpoint'][0].append([args.start_point[p]]*(args.particles/points))
-                IKAMOANA_Args['startpoint'][1].append([args.start_point[p+1]]*(args.particles/points))
-            IKAMOANA_Args['startpoint'][0] = [val for sublist in IKAMOANA_Args['startpoint'][0] for val in sublist]
-            IKAMOANA_Args['startpoint'][1] = [val for sublist in IKAMOANA_Args['startpoint'][1] for val in sublist]
+    if 'start_point' in IKAMOANA_Args:
+        IKAMOANA_Args['startpoint'] = [[],[]]
+        points = len(IKAMOANA_Args['start_point'])/2
+        for p in range(0,points*2, 2):
+            IKAMOANA_Args['startpoint'][0].append([IKAMOANA_Args['start_point'][p]]*int((IKAMOANA_Args['individuals']/points)))
+            IKAMOANA_Args['startpoint'][1].append([IKAMOANA_Args['start_point'][p+1]]*int((IKAMOANA_Args['individuals']/points)))
+        IKAMOANA_Args['startpoint'][0] = [val for sublist in IKAMOANA_Args['startpoint'][0] for val in sublist]
+        IKAMOANA_Args['startpoint'][1] = [val for sublist in IKAMOANA_Args['startpoint'][1] for val in sublist]
 
-
-    IKAMOANA(Forcing_Files=IKAMOANA_Args['ForcingFiles'], Forcing_Variables=IKAMOANA_Args['ForcingVariables'], individuals=IKAMOANA_Args['individuals'],
-             T=IKAMOANA_Args['time'],timestep=IKAMOANA_Args['timestep'], BehaviourMode=IKAMOANA_Args['Behaviour'], density_timestep=IKAMOANA_Args['density_timestep'],
-             Landmask_File=IKAMOANA_Args['ForcingUbathy'], SEAPODYM_parfile=IKAMOANA_Args['SEAPODYM_parfile'],
+    print(args.random_seed)
+    IKAMOANA(Forcing_Files=IKAMOANA_Args['ForcingFiles'], Forcing_Variables=IKAMOANA_Args['ForcingVariables'], individuals=int(IKAMOANA_Args['individuals']),
+             T=IKAMOANA_Args['time'],timestep=IKAMOANA_Args['timestep'], BehaviourMode=IKAMOANA_Args['Behaviour'],
+             density_timestep=IKAMOANA_Args['density_timestep'] if 'density_timestep' in IKAMOANA_Args else 0,
+             Landmask_File=IKAMOANA_Args['ForcingUbathy'] if 'ForcingUbathy' in IKAMOANA_Args else None,
+             SEAPODYM_parfile=IKAMOANA_Args['SEAPODYM_parfile'],
              Init_Positions=None if 'startpoint' not in IKAMOANA_Args else IKAMOANA_Args['startpoint'], mode=IKAMOANA_Args['kernel_mode'],
              output_grid=IKAMOANA_Args['write_grid'], output_trajectory=IKAMOANA_Args['write_particles'],  output_filestem=args.output,
-             starttime=IKAMOANA_Args['start_time'], start_age=IKAMOANA_Args['start_age'])
+             starttime=IKAMOANA_Args['start_time'], start_age=IKAMOANA_Args['start_age'], forcing_dir=IKAMOANA_Args['ForcingDir'],
+             fishing_dir=IKAMOANA_Args['FishingDir'] if 'FishingDir' in IKAMOANA_Args else IKAMOANA_Args['ForcingDir'],
+             diffusion_scaler=IKAMOANA_Args['K_scale'] if 'K_scale' in IKAMOANA_Args else 1,
+             taxis_scaler=IKAMOANA_Args['T_scale'] if 'T_scale' in IKAMOANA_Args else 1,
+             currents_scaler=IKAMOANA_Args['A_scale'] if 'A_scale' in IKAMOANA_Args else 1,
+             random_seed=args.random_seed)
