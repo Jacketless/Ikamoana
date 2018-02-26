@@ -153,30 +153,32 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
         ocean.add_constant('MSslope', SEAPODYM_Params['Ms_mean_slope'])
         ocean.add_constant('Mrange', SEAPODYM_Params['M_mean_range'])
 
-    for f in ocean.fields:
-        print(f.name)
-        print(f.data.shape)
-
     if output_grid:
         ocean.write(output_filestem)
 
     # Add constants to the fieldset
     ocean.add_constant('AGE_CLASS', SEAPODYM_Params['SEAPODYM_dt'])
 
+    print ocean.U.lon[1:10]
+    print ocean.V.lon[1:10]
+
+    print ocean.gridset.size
+
     # Create the particle set for our simulated animals
     if Init_Positions is not None:
-        animalset = ParticleSet.from_list(fieldset=ocean, lon=Init_Positions[0], lat=Init_Positions[1], pclass=Animal)
+        animalset = ParticleSet.from_list(fieldset=ocean, time=start_time, lon=Init_Positions[0], lat=Init_Positions[1], pclass=Animal)
     else:
         # Find the closest startfield timestamp to the simulation start time
         idx = np.argmin(abs(ocean.start.time - start_time))
         ocean.start.data = ocean.start.data[idx,:,:]
         ocean.start.time = ocean.start.time[idx]
-        animalset = ParticleSet.from_field(fieldset=ocean, start_field=ocean.start, size=individuals, pclass=Animal)
+        animalset = ParticleSet.from_field(fieldset=ocean, time=start_time, start_field=ocean.start, size=individuals, pclass=Animal)
     for a in animalset.particles:
         a.age_class = start_age
         a.age = start_age*ocean.AGE_CLASS
 
-    trajectory_file = ParticleFile(output_filestem + '_trajectories', animalset) if output_trajectory is True else None
+    print "Creating pfile"
+    trajectory_file = ParticleFile(output_filestem + '_trajectories', animalset, outputdt=timestep) if output_trajectory is True else None
 
     # Build kernels
     AllKernels = {'Advection_C':Advection_C,
@@ -219,8 +221,8 @@ def IKAMOANA(Forcing_Files, Init_Distribution_File=None, Init_Positions=None,
         start = datetime.datetime.fromtimestamp(step).strftime('%Y-%m-%d %H:%M:%S')
         end = datetime.datetime.fromtimestamp(step+outer_timestep).strftime('%Y-%m-%d %H:%M:%S')
         print("Executing from %s (%s) to %s (%s), in steps of %s" % (start, step, end, step+outer_timestep, timestep))
-        animalset.execute(behaviours, starttime=step, endtime=step+outer_timestep, dt=timestep,
-                          output_file=trajectory_file, interval=timestep, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
+        animalset.execute(behaviours, endtime=step+outer_timestep, dt=timestep,
+                          output_file=trajectory_file, recovery={ErrorCode.ErrorOutOfBounds: UndoMove})
         if density_timestep > 0:
             print(np.where(sim_steps == step)[0]+1)
             Density.data[np.where(sim_steps == step)[0]+1,:,:] = animalset.density(field=ocean.U, particle_val='school')

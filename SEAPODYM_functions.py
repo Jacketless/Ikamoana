@@ -2,7 +2,7 @@ import numpy as np
 import struct
 import math
 from parcels.field import Field, Geographic, GeographicPolar
-from parcels.fieldset import FieldSet,  data_converters_func
+from parcels.fieldset import FieldSet
 from parcels.particle import *
 from netCDF4 import num2date
 from datetime import datetime
@@ -13,7 +13,8 @@ from xml.dom import minidom
 
 
 def getGradient(field, landmask=None, shallow_sea_zero=True, time_period=None):
-    dx, dy = field.cell_distances()
+    field.calc_cell_edge_sizes()
+    dx, dy = field.grid.cell_edge_sizes['x'], field.grid.cell_edge_sizes['y'] #field.cell_distances()
     if time_period is not None:
         print(datetime.fromtimestamp(field.time[0]))
         print(datetime.fromtimestamp(field.time[-1]))
